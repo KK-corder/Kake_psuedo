@@ -1,0 +1,39 @@
+【Unity】Humanoid対応 手の3Dモデル（VRC想定のAnimation Clip20種類付き）【CC0】
+
+Humanoid対応の手の3DモデルとVRC想定のAnimation ClipをまとめたUnityPackageです。
+
+これを土台にして作られた色んな手が見たい・配布されてほしいという下心を大層込めまして、CC0で無料配布致します。
+支援版も中身は同じです。
+
+どうぞご自由にお使い下さい。
+何かしらお役に立てれば幸いです。
+
+※Humanoid設定されたボーンの回転のみで自然に握り込む形になるようにメッシュの形を調整してありますが、そのせいで汎用性は無いかもしれません。
+
+
+【概要】
+「手の3Dモデル」
+　形式：FBX, Blendファイル
+　ポリゴン数：1,862（片手）
+　テクスチャ：1枚（PNG, PSD）
+　Animation Clip：20
+
+
+【導入方法（Unity）】
+　1. 見た目をサンプル画像と同じようにしたい場合は
+　　先に「Sunao Shader」をインポートしてください。
+　　https://agenasu.booth.pm/items/1723985
+
+　2. UnityのプロジェクトへUnityPackageをインポートし、
+　　Asset>UmebocDC>Model>Hand内にあるScene「UmebocDC_Hand」を開くか、「FBX」内にあるモデルをSceneに置いてご利用ください。
+　
+
+【ライセンス】
+CC0
+https://creativecommons.org/share-your-work/public-domain/cc0
+自己責任においてご利用下さい。
+
+
+【更新履歴】
+2021年10月10日アニメーション修正
+2021年9月14日より配布開始
