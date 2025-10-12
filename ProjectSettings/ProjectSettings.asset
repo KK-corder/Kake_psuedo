@@ -742,7 +742,8 @@ PlayerSettings:
   webGLMemoryGeometricGrowthCap: 96
   webGLPowerPreference: 2
   scriptingDefineSymbols:
-    Android: pHUMANOID4;hOCHAND;hULTRALEAP;hCUSTOM;pUNITYXR
+    Android: pHUMANOID4;hULTRALEAP;hCUSTOM;pUNITYXR;hOCHAND
+    Standalone: pHUMANOID4;hULTRALEAP;hCUSTOM;pUNITYXR
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

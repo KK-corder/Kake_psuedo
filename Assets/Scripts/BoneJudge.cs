@@ -12,7 +12,7 @@ public class BoneJudge : MonoBehaviour
     // 各オブジェクトに対する接触状態
     public bool[] isTouching;
     // 各オブジェクトに対応する固定された最も近いボーン
-    private Transform[] fixedClosestBones;
+    public Transform[] fixedClosestBones; // privateからpublicに変更
 
     public Vector3[] touchPoints; // 各オブジェクトに対応する接触点
     private float[] fixedZs;       // 各オブジェクトに対応する固定z座標
@@ -21,6 +21,11 @@ public class BoneJudge : MonoBehaviour
     // プログレスの始点と終点の座標
     [HideInInspector] public Vector3 progressStart;
     [HideInInspector] public Vector3 progressEnd;
+
+    // Start Point用のオブジェクト参照（Inspectorで設定）
+    [Header("Progress Point Settings")]
+    public Transform startPointObject; // 始点として使用するオブジェクト
+    public bool useCustomStartPoint = false; // カスタムstart pointを使用するかどうか
 
     // 追加: 始点用のHand_ForearmStubの z 座標を固定するための変数
     private float fixedForearmZ;
@@ -49,6 +54,18 @@ public class BoneJudge : MonoBehaviour
             var r = (cubes != null && i < cubes.Length && cubes[i] != null) ? cubes[i].GetComponent<Renderer>() : null;
             originalMaterials[i] = (r != null) ? r.sharedMaterial : null;
         }
+        
+        // カスタムstart pointの検証
+        if (useCustomStartPoint && startPointObject == null)
+        {
+            Debug.LogWarning("BoneJudge: useCustomStartPoint is enabled but startPointObject is not assigned. Falling back to Hand_ForearmStub.");
+            useCustomStartPoint = false;
+        }
+        
+        if (useCustomStartPoint && startPointObject != null)
+        {
+            Debug.Log($"BoneJudge: Using custom start point object: {startPointObject.name}");
+        }
     }
 
     void Update()
@@ -70,30 +87,41 @@ public class BoneJudge : MonoBehaviour
             }
         }
 
-        // 始点(progressStart)は Hand_ForearmStub の座標を使用する
-        Vector3 forearmPos = Vector3.zero;
-        foreach (var bone in HandSkeleton.Bones)
+        // 始点(progressStart)の決定
+        Vector3 baseStartPos = Vector3.zero;
+        
+        if (useCustomStartPoint && startPointObject != null)
         {
-            if (bone.Transform != null && bone.Transform.name == "Hand_ForearmStub")
+            // カスタムオブジェクトの座標を使用
+            baseStartPos = startPointObject.position;
+        }
+        else
+        {
+            // デフォルト: Hand_ForearmStub の座標を使用する
+            foreach (var bone in HandSkeleton.Bones)
             {
-                forearmPos = bone.Transform.position;
-                break;
+                if (bone.Transform != null && bone.Transform.name == "Hand_ForearmStub")
+                {
+                    baseStartPos = bone.Transform.position;
+                    break;
+                }
             }
         }
+        
         if (anyContact)
         {
             // 接触中なら、初回の接触時に固定した z 座標を使う
             if (!forearmZFrozen)
             {
-                fixedForearmZ = forearmPos.z;
+                fixedForearmZ = baseStartPos.z;
                 forearmZFrozen = true;
             }
-            progressStart = new Vector3(forearmPos.x, forearmPos.y, fixedForearmZ);
+            progressStart = new Vector3(baseStartPos.x, baseStartPos.y, fixedForearmZ);
         }
         else
         {
             forearmZFrozen = false; // 接触がなくなったら解除
-            progressStart = forearmPos;
+            progressStart = baseStartPos;
         }
 
         // 終点(progressEnd)は、接触があれば固定されたboneの座標、
@@ -128,7 +156,7 @@ public class BoneJudge : MonoBehaviour
             return;
 
         // Cubeの当たり判定を拡張する倍率
-        const float cubeHitboxScale = 1.1f; // 10%大きく
+        const float cubeHitboxScale = 1.05f; // 30%大きく
         for (int i = 0; i < cubes.Length; i++)
         {
             GameObject obj = cubes[i];
@@ -273,5 +301,44 @@ public class BoneJudge : MonoBehaviour
                 }
             }
         }
+    }
+    
+    /// <summary>
+    /// 指定されたインデックスの接触しているボーンの位置を取得
+    /// </summary>
+    /// <param name="cubeIndex">Cubeのインデックス</param>
+    /// <returns>接触しているボーンの位置、接触していない場合はVector3.zero</returns>
+    public Vector3 GetContactingBonePosition(int cubeIndex)
+    {
+        if (cubeIndex < 0 || cubeIndex >= fixedClosestBones.Length)
+            return Vector3.zero;
+            
+        if (isTouching != null && cubeIndex < isTouching.Length && isTouching[cubeIndex])
+        {
+            if (fixedClosestBones[cubeIndex] != null)
+            {
+                return fixedClosestBones[cubeIndex].position;
+            }
+        }
+        
+        return Vector3.zero;
+    }
+    
+    /// <summary>
+    /// 指定されたインデックスの接触しているボーンのTransformを取得
+    /// </summary>
+    /// <param name="cubeIndex">Cubeのインデックス</param>
+    /// <returns>接触しているボーンのTransform、接触していない場合はnull</returns>
+    public Transform GetContactingBoneTransform(int cubeIndex)
+    {
+        if (cubeIndex < 0 || cubeIndex >= fixedClosestBones.Length)
+            return null;
+            
+        if (isTouching != null && cubeIndex < isTouching.Length && isTouching[cubeIndex])
+        {
+            return fixedClosestBones[cubeIndex];
+        }
+        
+        return null;
     }
 }
