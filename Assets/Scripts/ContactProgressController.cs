@@ -2,8 +2,10 @@ using UnityEngine;
 
 public class ContactProgressController : MonoBehaviour
 {
-    // BoneJudge.cs の参照（接触判定用）
-    public BoneJudge boneJudge;
+    // BoneJudgeNew.cs の参照（接触判定用）
+    public BoneJudgeNew bonejudgeNew;
+
+    public ProgressSet progressSet;
 
     //public TaskManage taskmanage;
 
@@ -20,8 +22,10 @@ public class ContactProgressController : MonoBehaviour
     private float[] contactTime;
     private float[] currentProgress;
 
-    // 前フレームの手モデルの z 座標
-    private float previousHandZ;
+    // 接触開始時の手モデルの座標（各キューブごと）
+    private Vector3[] contactStartPosition;
+    // 接触状態の追跡（各キューブごと）
+    private bool[] wasContactingLastFrame;
 
     public OVRSkeleton handModel;
 
@@ -31,39 +35,36 @@ public class ContactProgressController : MonoBehaviour
     void Start()
     {
         // Basic validation and debug
-        if (boneJudge == null)
+        if (bonejudgeNew == null)
         {
-            Debug.LogError("ContactProgressController: boneJudge is not assigned in the Inspector.");
+            Debug.LogError("ContactProgressController: bonejudgeNew is not assigned in the Inspector.");
             return;
         }
 
- 
-            previousHandZ = GetHandZ();
-        
-
-        int count = Mathf.Max(1, boneJudge.cubes != null ? boneJudge.cubes.Length : 1);
+        int count = Mathf.Max(1, bonejudgeNew.cubes != null ? bonejudgeNew.cubes.Length : 1);
         contactTime = new float[count];
         currentProgress = new float[count];
+        contactStartPosition = new Vector3[count];
+        wasContactingLastFrame = new bool[count];
 
         for (int i = 0; i < count; i++)
         {
             // 接触がなくなった場合はリセット
             contactTime[i] = 0f;
             currentProgress[i] = 1f;
+            contactStartPosition[i] = Vector3.zero;
+            wasContactingLastFrame[i] = false;
         }
-
-
-
     }
 
     void Update()
     {
         bool contactActive = false;
 
-        // BoneJudge の isTouching 配列のうち、いずれかが true なら接触中とする
-        if (boneJudge != null && boneJudge.isTouching != null)
+        // bonejudgeNew の isTouching 配列のうち、いずれかが true なら接触中とする
+        if (bonejudgeNew != null && bonejudgeNew.isTouching != null)
         {
-            foreach (bool touching in boneJudge.isTouching)
+            foreach (bool touching in bonejudgeNew.isTouching)
             {
                 if (touching)
                 {
@@ -75,72 +76,74 @@ public class ContactProgressController : MonoBehaviour
 
         if (contactActive)
         {
-            // 現在の手モデルの z 座標を取得
-            float currentHandZ = GetHandZ();
-            // 符号付きの変化量を算出（正なら進行方向、負なら逆方向）
-            float delta = currentHandZ - previousHandZ;
-            previousHandZ = currentHandZ;
-
-            if (logShouldShow())
-            {
-                Debug.Log($"ContactProgressController.Update: contactActive={contactActive}, currentHandZ={currentHandZ:F4}, delta={delta:F4}");
-            }
-
-            // 変化量の絶対値と期待される変化量の比率を求める
-            float handAbsDelta = Mathf.Abs(delta);
-  
-
             // 接触しているCubeに基づいてcurrentProgressを更新
-            for (int i = 0; i < boneJudge.cubes.Length; i++)
+            for (int i = 0; i < bonejudgeNew.cubes.Length; i++)
             {
-                if (boneJudge.isTouching[i])
+                if (bonejudgeNew.isTouching[i])
                 {
+                    // 接触開始時の座標を記録
+                    if (!wasContactingLastFrame[i])
+                    {
+                        contactStartPosition[i] = GetHandPosition();
+                        wasContactingLastFrame[i] = true;
+                        Debug.Log($"Contact started for cube[{i}] at position: {contactStartPosition[i]}");
+                    }
+
                     contactTime[i] += Time.deltaTime;
+
+                    // 現在の手の座標を取得
+                    Vector3 currentHandPosition = GetHandPosition();
+                    
+                    // 接触開始時からのY軸方向の変位のみを計算
+                    float yDisplacement = currentHandPosition.y - contactStartPosition[i].y;
 
                     // protect against progressIncreaseRate missing or too short
                     float pRate = 0.5f;
                     if (progressIncreaseRate != null && i < progressIncreaseRate.Length)
                         pRate = progressIncreaseRate[i];
 
-                    //progressIncreaseRate[i]を塁上にしてもっと差分を大きく
                     float oldProgress = currentProgress[i];
-                    if (delta > 0)
+                    
+                    // Y軸方向の変化に基づいてprogressを更新
+                    if (yDisplacement > 0)
                     {
-                        // 手モデルが正方向に移動：currentProgress を減少
-                        currentProgress[i] -= pRate * handAbsDelta * Time.deltaTime * 10f;
+                        // Y軸正方向への移動：currentProgress を減少
+                        currentProgress[i] -= pRate * Mathf.Abs(yDisplacement) * Time.deltaTime;
                     }
-                    else if (delta < 0)
+                    else if (yDisplacement < 0)
                     {
-                        // 手モデルが負方向に移動：currentProgress を増加
-                        currentProgress[i] += pRate * handAbsDelta * Time.deltaTime * 10f;
+                        // Y軸負方向への移動：currentProgress を増加
+                        currentProgress[i] += pRate * Mathf.Abs(yDisplacement) * Time.deltaTime;
                     }
                     
                     // デバッグ：変化量を確認
                     if (Mathf.Abs(oldProgress - currentProgress[i]) > 0.0001f)
                     {
-                        Debug.Log($"Progress changed for cube[{i}]: {oldProgress:F6} -> {currentProgress[i]:F6}, delta={delta:F6}");
-                    }
-                    else if (delta != 0)
-                    {
-                        Debug.Log($"Progress NOT changed for cube[{i}]: delta={delta:F6}, pRate={pRate:F6}, changeAmount={pRate * handAbsDelta * Time.deltaTime * 10f:F6}");
-                    }
-                    else
-                    {
-                        Debug.Log($"No hand movement detected for cube[{i}]: delta=0, currentHandZ={currentHandZ:F6}, previousHandZ={previousHandZ:F6}");
+                        Debug.Log($"Progress changed for cube[{i}]: {oldProgress:F6} -> {currentProgress[i]:F6}, Y displacement: {yDisplacement:F6}");
                     }
 
                     if (logShouldShow())
-                        Debug.Log($"ContactProgressController: cube[{i}] touching, pRate={pRate:F3}, currentProgress={currentProgress[i]:F4}");
+                        Debug.Log($"ContactProgressController: cube[{i}] touching, pRate={pRate:F3}, currentProgress={currentProgress[i]:F4}, Y displacement={yDisplacement:F4}");
+                }
+                else
+                {
+                    // 接触がなくなった場合
+                    if (wasContactingLastFrame[i])
+                    {
+                        wasContactingLastFrame[i] = false;
+                        //Debug.Log($"Contact ended for cube[{i}]");
+                    }
                 }
             }
         }
         else
         {
-            for (int i = 0; i < boneJudge.cubes.Length; i++)
+            for (int i = 0; i < bonejudgeNew.cubes.Length; i++)
             {
                 // 接触がなくなった場合はリセット
                 contactTime[i] = 0f;
                 currentProgress[i] = 1f;
+                wasContactingLastFrame[i] = false;
 
                 // デバッグログでリセットを確認
                 //Debug.Log($"Cube {i}: Reset currentProgress to {currentProgress[i]}");
@@ -152,18 +155,14 @@ public class ContactProgressController : MonoBehaviour
                 handTransitionMaterial.SetFloat("_Progress", 1.0f);
                 //Debug.Log("Reset _Progress to 1.0f");
             }
-
-
-                previousHandZ = GetHandZ();
-            
         }
 
-        for (int i = 0; i < boneJudge.cubes.Length; i++)
+        for (int i = 0; i < bonejudgeNew.cubes.Length; i++)
         {
             // currentProgress を 0～1 の範囲にクランプ
             currentProgress[i] = Mathf.Clamp01(currentProgress[i]);
 
-            if (boneJudge.isTouching[i])
+            if (bonejudgeNew.isTouching[i])
             {
                 // シェーダーの _Progress プロパティを更新
                 if (handTransitionMaterial != null)
@@ -174,11 +173,11 @@ public class ContactProgressController : MonoBehaviour
                     float progress = handTransitionMaterial.GetFloat("_Progress");
                     if (progressIncreaseRate != null && i < progressIncreaseRate.Length)
                     {
-                        Debug.Log($"Cube {i}: Shader _Progress = {progress:F6}, Current Progress = {currentProgress[i]:F6}, pRate={progressIncreaseRate[i]:F6}");
+                        //Debug.Log($"Cube {i}: Shader _Progress = {progress:F6}, Current Progress = {currentProgress[i]:F6}, pRate={progressIncreaseRate[i]:F6}");
                     }
                     else
                     {
-                        Debug.Log($"Cube {i}: Shader _Progress = {progress:F6}, Current Progress = {currentProgress[i]:F6}, pRate=default(0.5)");
+                        //Debug.Log($"Cube {i}: Shader _Progress = {progress:F6}, Current Progress = {currentProgress[i]:F6}, pRate=default(0.5)");
                     }
                 }
             }
@@ -186,13 +185,13 @@ public class ContactProgressController : MonoBehaviour
     }
 
 
-    // BoneJudge の progressStart の z 座標を取得する関数
+    // bonejudgeNew の progressStart の z 座標を取得する関数
     private float GetHandZ()
     {
-        if (boneJudge != null)
+        if (bonejudgeNew != null)
         {
-            // BoneJudgeのprogressStartを使用（より一貫性がある）
-            return boneJudge.progressStart.z;
+            // bonejudgeNewのprogressStartを使用（より一貫性がある）
+            return progressSet.progressStart.z;
         }
         
         // フォールバック: 従来のOVRSkeletonからの取得
@@ -209,6 +208,31 @@ public class ContactProgressController : MonoBehaviour
             }
         }
         return handPos.z;
+    }
+
+    // 手の3D座標を取得する関数（X、Y、Z軸すべて）
+    private Vector3 GetHandPosition()
+    {
+        if (progressSet != null)
+        {
+            // progressSetのprogressStartを使用（より一貫性がある）
+            return progressSet.progressStart;
+        }
+        
+        // フォールバック: 従来のOVRSkeletonからの取得
+        Vector3 handPos = Vector3.zero;
+        if (handModel == null || handModel.Bones == null)
+            return Vector3.zero;
+
+        foreach (var bone in handModel.Bones)
+        {
+            if (bone.Transform != null && bone.Transform.name == "Hand_ForearmStub")
+            {
+                handPos = bone.Transform.position;
+                break;
+            }
+        }
+        return handPos;
     }
 
     private bool logShouldShow()

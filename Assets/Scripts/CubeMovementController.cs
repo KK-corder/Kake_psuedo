@@ -5,41 +5,82 @@ using UnityEngine;
 public class CubeMovementController : MonoBehaviour
 {
     [Header("References")]
-    public BoneJudge boneJudge;
+    public BoneJudgeNew bonejudgeNew;
 
     [Header("Settings")]
     public int cubeIndex = 0;
     public float moveSpeed = 1.0f; // 移動の倍率（1.0で手と同じ移動量）
     
     [Header("Movement Constraints")]
-    public bool enableZMovement = true;
-    public float minZPosition = -5f;
-    public float maxZPosition = 5f;
+    public bool enableMovement = true;
+    public bool usePositionConstraints = false; // 位置制限を使用するかどうか
+    public Vector3 minPosition = new Vector3(-10f, -10f, -10f);
+    public Vector3 maxPosition = new Vector3(10f, 10f, 10f);
+    
+    [Header("Physics Settings")]
+    public bool enableGravityControl = true; // 重力制御を有効にするかどうか
+    public float normalGravity = -9.8f; // 通常時の重力加速度
+    public float contactGravity = 0f; // 接触時の重力加速度
     
     [Header("Debug")]
     public bool showDebugLogs = false;
 
-    private float previousHandZ = 0f;
+    private Vector3 previousHandPosition = Vector3.zero;
     private bool firstFrame = true;
+    private bool wasContactingLastFrame = false; // 前フレームの接触状態
+    private Rigidbody cubeRigidbody; // キューブのRigidbody参照
+    private static bool gravityControllerExists = false; // 重力制御の重複防止
 
     // 初期位置を保持する変数
     private Vector3 initialPosition;
 
-    // 接触しているボーンのZ座標を取得する関数
+    // 接触しているボーンの3D座標を取得する関数
+    private Vector3 GetContactingBonePosition()
+    {
+        if (bonejudgeNew != null)
+        {
+            return bonejudgeNew.GetContactingBonePosition(cubeIndex);
+        }
+        return Vector3.zero;
+    }
+
+    // 接触しているボーンのZ座標を取得する関数（後方互換性のため保持）
     private float GetContactingBoneZ()
     {
-        if (boneJudge != null)
-        {
-            Vector3 bonePosition = boneJudge.GetContactingBonePosition(cubeIndex);
-            return bonePosition.z;
-        }
-        return 0f;
+        Vector3 bonePosition = GetContactingBonePosition();
+        return bonePosition.z;
     }
 
     void Start()
     {
         // 初期位置を記録
         initialPosition = transform.position;
+        
+        // Rigidbodyコンポーネントを取得
+        cubeRigidbody = GetComponent<Rigidbody>();
+        if (cubeRigidbody == null && enableGravityControl)
+        {
+            Debug.LogWarning($"CubeMovementController: Cube {cubeIndex} does not have a Rigidbody component. Gravity control will be disabled.");
+            enableGravityControl = false;
+        }
+        
+        // 初期状態では通常の重力を設定（接触していない状態）
+        if (enableGravityControl && !gravityControllerExists)
+        {
+            Physics.gravity = new Vector3(0, normalGravity, 0);
+            gravityControllerExists = true;
+            
+            if (showDebugLogs)
+            {
+                Debug.Log($"CubeMovementController: Cube {cubeIndex} set initial gravity to {normalGravity} m/s²");
+            }
+        }
+        
+        // Rigidbodyの重力使用フラグは常にtrueにしておく
+        if (cubeRigidbody != null)
+        {
+            cubeRigidbody.useGravity = true;
+        }
         
         if (showDebugLogs)
         {
@@ -49,45 +90,104 @@ public class CubeMovementController : MonoBehaviour
 
     void Update()
     {
-        if (!enableZMovement || boneJudge == null || boneJudge.isTouching == null)
+        if (!enableMovement || bonejudgeNew == null || bonejudgeNew.isTouching == null)
             return;
             
-        if (cubeIndex < 0 || cubeIndex >= boneJudge.isTouching.Length)
+        if (cubeIndex < 0 || cubeIndex >= bonejudgeNew.isTouching.Length)
             return;
 
-        if (boneJudge.isTouching[cubeIndex])
+        if (bonejudgeNew.isTouching[cubeIndex])
         {
-            float currentBoneZ = GetContactingBoneZ();
+            // 接触開始時の処理
+            if (!wasContactingLastFrame && enableGravityControl)
+            {
+                // 重力加速度を0に設定
+                Physics.gravity = new Vector3(0, contactGravity, 0);
+                
+                // 物理的な速度をリセットして手動制御に移行
+                if (cubeRigidbody != null)
+                {
+                    cubeRigidbody.velocity = Vector3.zero;
+                    cubeRigidbody.angularVelocity = Vector3.zero;
+                }
+                
+                if (showDebugLogs)
+                {
+                    Debug.Log($"Cube {cubeIndex}: Contact started - Gravity acceleration set to {contactGravity} m/s², velocity reset");
+                }
+            }
+            
+            wasContactingLastFrame = true;
+            
+            Vector3 currentHandPosition = GetContactingBonePosition();
+            
             if (firstFrame)
             {
-                previousHandZ = currentBoneZ;
+                previousHandPosition = currentHandPosition;
                 firstFrame = false;
                 return;
             }
 
-            // 接触しているボーンのZ軸変化量を計算
-            float delta = currentBoneZ - previousHandZ;
-            previousHandZ = currentBoneZ;
+            // 接触しているボーンの3D移動量を計算
+            Vector3 deltaPosition = currentHandPosition - previousHandPosition;
+            previousHandPosition = currentHandPosition;
 
-            // シンプルにボーンの移動量に移動倍率をかけてCubeを移動
-            float moveAmount = delta * moveSpeed;
-            Vector3 newPosition = transform.position + Vector3.forward * moveAmount;
+            // ハンドの移動量に移動倍率をかけてCubeを移動
+            Vector3 moveAmount = deltaPosition * moveSpeed;
+            Vector3 newPosition = transform.position + moveAmount;
             
-            // Z座標の制限を適用
-            newPosition.z = Mathf.Clamp(newPosition.z, minZPosition, maxZPosition);
+            // 位置制限が有効な場合のみクランプ処理を適用
+            if (usePositionConstraints)
+            {
+                newPosition.x = Mathf.Clamp(newPosition.x, minPosition.x, maxPosition.x);
+                newPosition.y = Mathf.Clamp(newPosition.y, minPosition.y, maxPosition.y);
+                newPosition.z = Mathf.Clamp(newPosition.z, minPosition.z, maxPosition.z);
+            }
             
             // 位置を更新
             transform.position = newPosition;
             
             // デバッグログ
-            if (showDebugLogs && Mathf.Abs(moveAmount) > 0.0001f)
+            if (showDebugLogs && moveAmount.magnitude > 0.0001f)
             {
-                Debug.Log($"Cube {cubeIndex}: Bone Z delta = {delta:F4}, Move amount = {moveAmount:F4}, New Z = {newPosition.z:F4}");
+                Debug.Log($"Cube {cubeIndex}: Hand delta = {deltaPosition}, Move amount = {moveAmount}, New position = {newPosition}");
+                if (usePositionConstraints)
+                {
+                    Debug.Log($"Cube {cubeIndex}: Position constraints applied. Min: {minPosition}, Max: {maxPosition}");
+                }
             }
         }
         else
         {
+            // 接触終了時の処理
+            if (wasContactingLastFrame && enableGravityControl)
+            {
+                // 重力加速度を通常値に戻す
+                Physics.gravity = new Vector3(0, normalGravity, 0);
+                
+                if (showDebugLogs)
+                {
+                    Debug.Log($"Cube {cubeIndex}: Contact ended - Gravity acceleration restored to {normalGravity} m/s²");
+                }
+            }
+            
+            wasContactingLastFrame = false;
             firstFrame = true;
+        }
+    }
+
+    void OnDestroy()
+    {
+        // オブジェクト破棄時に重力を通常値に戻す
+        if (enableGravityControl && gravityControllerExists)
+        {
+            Physics.gravity = new Vector3(0, normalGravity, 0);
+            gravityControllerExists = false;
+            
+            if (showDebugLogs)
+            {
+                Debug.Log($"CubeMovementController: Cube {cubeIndex} destroyed - Gravity restored to {normalGravity} m/s²");
+            }
         }
     }
 
@@ -106,11 +206,11 @@ public class CubeMovementController : MonoBehaviour
     }
     
     /// <summary>
-    /// Z軸移動を有効/無効化
+    /// 3D移動を有効/無効化
     /// </summary>
-    public void SetZMovementEnabled(bool enabled)
+    public void SetMovementEnabled(bool enabled)
     {
-        enableZMovement = enabled;
+        enableMovement = enabled;
         if (!enabled)
         {
             firstFrame = true;
@@ -118,12 +218,28 @@ public class CubeMovementController : MonoBehaviour
         
         if (showDebugLogs)
         {
-            Debug.Log($"Cube {cubeIndex}: Z movement {(enabled ? "enabled" : "disabled")}");
+            Debug.Log($"Cube {cubeIndex}: 3D movement {(enabled ? "enabled" : "disabled")}");
         }
     }
     
     /// <summary>
-    /// 初期位置からのZ軸移動距離を取得
+    /// Z軸移動を有効/無効化（後方互換性のため保持）
+    /// </summary>
+    public void SetZMovementEnabled(bool enabled)
+    {
+        SetMovementEnabled(enabled);
+    }
+    
+    /// <summary>
+    /// 初期位置からの3D移動距離を取得
+    /// </summary>
+    public Vector3 GetMovementDistance()
+    {
+        return transform.position - initialPosition;
+    }
+    
+    /// <summary>
+    /// 初期位置からのZ軸移動距離を取得（後方互換性のため保持）
     /// </summary>
     public float GetZMovementDistance()
     {
@@ -135,18 +251,108 @@ public class CubeMovementController : MonoBehaviour
     /// </summary>
     public bool IsCurrentlyTouching()
     {
-        if (boneJudge == null || boneJudge.isTouching == null)
+        if (bonejudgeNew == null || bonejudgeNew.isTouching == null)
             return false;
             
-        if (cubeIndex < 0 || cubeIndex >= boneJudge.isTouching.Length)
+        if (cubeIndex < 0 || cubeIndex >= bonejudgeNew.isTouching.Length)
             return false;
             
-        return boneJudge.isTouching[cubeIndex];
+        return bonejudgeNew.isTouching[cubeIndex];
     }
 
-    // 初期位置からのz座標の移動距離を計算するメソッド
-    // public float GetMovedDistance()
-    // {
-    //     //return Mathf.Abs(transform.position.z - cubeResetButton.defaultPositions[0].z);
-    // }
+    /// <summary>
+    /// 現在のハンドの動きをデバッグ出力する
+    /// </summary>
+    public void DebugHandMovement()
+    {
+        if (!IsCurrentlyTouching()) return;
+
+        Vector3 currentHandPos = GetContactingBonePosition();
+        Vector3 deltaFromPrevious = currentHandPos - previousHandPosition;
+        
+        Debug.Log($"=== Cube {cubeIndex} Hand Movement Debug ===");
+        Debug.Log($"Current Hand Position: {currentHandPos}");
+        Debug.Log($"Previous Hand Position: {previousHandPosition}");
+        Debug.Log($"Delta Position: {deltaFromPrevious}");
+        Debug.Log($"Delta X: {deltaFromPrevious.x:F6}, Y: {deltaFromPrevious.y:F6}, Z: {deltaFromPrevious.z:F6}");
+        Debug.Log($"Move Speed: {moveSpeed}");
+        Debug.Log($"Use Position Constraints: {usePositionConstraints}");
+        if (usePositionConstraints)
+        {
+            Debug.Log($"Min Position: {minPosition}, Max Position: {maxPosition}");
+        }
+        Debug.Log($"Cube Current Position: {transform.position}");
+        
+        // 重力加速度状態も表示
+        if (enableGravityControl)
+        {
+            Debug.Log($"Current Gravity Acceleration: {Physics.gravity.y} m/s²");
+            Debug.Log($"Normal Gravity: {normalGravity} m/s², Contact Gravity: {contactGravity} m/s²");
+            if (cubeRigidbody != null)
+            {
+                Debug.Log($"Rigidbody useGravity: {cubeRigidbody.useGravity}");
+                Debug.Log($"Velocity: {cubeRigidbody.velocity}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 重力加速度を手動で設定する
+    /// </summary>
+    public void SetGravityAcceleration(float gravityY)
+    {
+        if (!enableGravityControl) return;
+        
+        Physics.gravity = new Vector3(0, gravityY, 0);
+        
+        if (showDebugLogs)
+        {
+            Debug.Log($"Cube {cubeIndex}: Gravity acceleration manually set to {gravityY} m/s²");
+        }
+    }
+
+    /// <summary>
+    /// 現在の重力加速度を取得
+    /// </summary>
+    public float GetCurrentGravityAcceleration()
+    {
+        return Physics.gravity.y;
+    }
+
+    /// <summary>
+    /// 通常重力に戻す
+    /// </summary>
+    public void RestoreNormalGravity()
+    {
+        SetGravityAcceleration(normalGravity);
+    }
+
+    /// <summary>
+    /// 接触時重力に設定
+    /// </summary>
+    public void SetContactGravity()
+    {
+        SetGravityAcceleration(contactGravity);
+    }
+
+    /// <summary>
+    /// 重力制御機能を有効/無効化
+    /// </summary>
+    public void SetGravityControlEnabled(bool enabled)
+    {
+        enableGravityControl = enabled;
+        
+        if (!enabled)
+        {
+            // 重力制御を無効にする場合は、重力を通常状態に戻す
+            Physics.gravity = new Vector3(0, normalGravity, 0);
+        }
+        
+        if (showDebugLogs)
+        {
+            Debug.Log($"Cube {cubeIndex}: Gravity control {(enabled ? "enabled" : "disabled")}");
+        }
+    }
+
+
 }
