@@ -7,7 +7,7 @@ public class ContactProgressController : MonoBehaviour
 
     public ProgressSet progressSet;
 
-    //public TaskManage taskmanage;
+    public TaskManage taskmanage;
 
 
     // handtransition.shader を使用しているマテリアルの参照
