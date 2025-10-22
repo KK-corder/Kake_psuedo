@@ -533,7 +533,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cubes:
   - {fileID: 1738819947}
-  yThreshold: 2.65
+  yThreshold: 2.18
   defaultPositions: []
   questionObjects:
   - {fileID: 714436171}
@@ -546,11 +546,11 @@ MonoBehaviour:
   contactProgressController: {fileID: 915006623}
   boneJudgeNewReset: {fileID: 1628848072}
   progressRateValues:
-  - 10
+  - 20
   - 30
+  - 40
   - 50
-  - 70
-  - 90
+  - 60
   totalTasks: 25
   trialsPerProgressRate: 5
   trialsPerPattern: 5
@@ -1546,10 +1546,13 @@ MonoBehaviour:
   bonejudgeNew: {fileID: 2107517494}
   progressSet: {fileID: 195092039}
   taskmanage: {fileID: 267400263}
+  handModel: {fileID: 1114160273}
   handTransitionMaterial: {fileID: 2100000, guid: b3da8300596626746b0ea9df6522c2a3, type: 2}
   progressIncreaseRate:
   - 10
-  handModel: {fileID: 1114160273}
+  enableContactFiltering: 1
+  minContactDuration: 0.1
+  enableDebugLogs: 0
 --- !u!1 &929457229
 GameObject:
   m_ObjectHideFlags: 0
@@ -2105,7 +2108,7 @@ Transform:
   m_GameObject: {fileID: 1104112168}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.293, z: -0.32399997}
+  m_LocalPosition: {x: 0, y: 1.9760001, z: -0.32399997}
   m_LocalScale: {x: 10, y: 0.05, z: 10}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2298,41 +2301,13 @@ GameObject:
   - component: {fileID: 1196989501}
   - component: {fileID: 1196989500}
   - component: {fileID: 1196989499}
-  - component: {fileID: 1196989498}
   m_Layer: 0
   m_Name: 'target_desk '
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!54 &1196989498
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1196989497}
-  serializedVersion: 4
-  m_Mass: 1
-  m_Drag: 0
-  m_AngularDrag: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 0
-  m_IsKinematic: 1
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
+  m_IsActive: 1
 --- !u!65 &1196989499
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -2350,7 +2325,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
@@ -2413,8 +2388,8 @@ Transform:
   m_GameObject: {fileID: 1196989497}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.401, z: 0.82}
-  m_LocalScale: {x: 1, y: 0.15, z: 1}
+  m_LocalPosition: {x: 0, y: 2.28, z: 0.49}
+  m_LocalScale: {x: 0.68, y: 0.01, z: 0.28}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -2558,7 +2533,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 2.7539997}
+  m_AnchoredPosition: {x: 0, y: 2.57}
   m_SizeDelta: {x: 1000, y: 277.99997}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1257283286
@@ -3159,7 +3134,7 @@ MonoBehaviour:
   csvLoader: {fileID: 929457231}
   contactProgressController: {fileID: 915006623}
   boneJudgeNew2afc: {fileID: 714436173}
-  userID: num1
+  userID: 555
   logContactEvents: 1
 --- !u!1 &1633876621 stripped
 GameObject:
@@ -3831,11 +3806,12 @@ GameObject:
   - component: {fileID: 1738819951}
   - component: {fileID: 1738819950}
   - component: {fileID: 1738819949}
+  - component: {fileID: 1738819955}
   - component: {fileID: 1738819948}
   - component: {fileID: 1738819953}
   - component: {fileID: 1738819954}
   m_Layer: 0
-  m_Name: Cube
+  m_Name: Target
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3885,7 +3861,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
@@ -3938,7 +3914,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1738819947}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!4 &1738819952
 Transform:
   m_ObjectHideFlags: 0
@@ -3948,9 +3924,9 @@ Transform:
   m_GameObject: {fileID: 1738819947}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.35, z: 0.466}
-  m_LocalScale: {x: 0.5, y: 0.05, z: 0.5}
-  m_ConstrainProportionsScale: 0
+  m_LocalPosition: {x: 0, y: 2.033, z: 0.466}
+  m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -3972,7 +3948,10 @@ MonoBehaviour:
   enableMovement: 1
   usePositionConstraints: 0
   minPosition: {x: -5, y: -5, z: -5}
-  maxPosition: {x: 5, y: 5, z: 5}
+  maxPosition: {x: 5, y: 10, z: 5}
+  enableXAxisMovement: 0
+  enableYAxisMovement: 1
+  enableZAxisMovement: 0
   enableGravityControl: 1
   normalGravity: -9.8
   contactGravity: 0
@@ -3993,6 +3972,27 @@ MonoBehaviour:
   boneJudgeNew: {fileID: 2107517494}
   taskManage: {fileID: 267400263}
   showDebugLogs: 1
+--- !u!135 &1738819955
+SphereCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1738819947}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Radius: 0.4
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!4 &1780109225 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 6303876426256002485, guid: ea16c3c8c1688234fa81a4f39339bf1b, type: 3}
@@ -4833,6 +4833,10 @@ MonoBehaviour:
   leftHandSkeleton: {fileID: 721707093}
   cubes:
   - {fileID: 1738819947}
+  sphereContactThreshold: 0.01
+  contactHysteresis: 0.005
+  contactStabilityFrames: 3
+  enableContactStabilization: 1
   isTouching: 00
   fixedClosestBones: []
   touchPoints: []

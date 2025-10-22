@@ -12,8 +12,23 @@ public class BoneJudgeNew : MonoBehaviour
 
 
     [Header("Target Objects")]
-    // 接触オブジェクト（CubeやSphereなど）をインスペクターでアタッチ
+    // 接触オブジェクト（Sphereなど）をインスペクターでアタッチ
+    // Sphere: 中心からの距離で精密判定を行います
     public GameObject[] cubes = new GameObject[3];
+
+    [Header("Sphere Contact Settings")]
+    // Sphere用の接触判定距離設定
+    public float sphereContactThreshold = 0.02f; // Sphere表面からの接触判定距離（拡大）
+    
+    [Header("Contact Stability Settings")]
+    // 接触安定化のための設定
+    public float contactHysteresis = 0.005f; // ヒステリシス効果（接触継続のための追加距離）
+    public int contactStabilityFrames = 3; // 接触状態を安定化するフレーム数
+    public bool enableContactStabilization = true; // 接触安定化を有効にするか
+
+    // 接触安定化用の内部変数
+    private int[] contactFrameCount; // 各オブジェクトの連続接触フレーム数
+    private int[] nonContactFrameCount; // 各オブジェクトの連続非接触フレーム数
 
 
 
@@ -43,6 +58,10 @@ public class BoneJudgeNew : MonoBehaviour
         isTouching = new bool[count];
         fixedClosestBones = new Transform[count];
         touchPoints = new Vector3[count];
+        
+        // 接触安定化用配列の初期化
+        contactFrameCount = new int[count];
+        nonContactFrameCount = new int[count];
 
         // cache original materials
         originalMaterials = new Material[count];
@@ -50,6 +69,10 @@ public class BoneJudgeNew : MonoBehaviour
         {
             var r = (cubes != null && i < cubes.Length && cubes[i] != null) ? cubes[i].GetComponent<Renderer>() : null;
             originalMaterials[i] = (r != null) ? r.sharedMaterial : null;
+            
+            // 安定化カウンターの初期化
+            contactFrameCount[i] = 0;
+            nonContactFrameCount[i] = 0;
         }
     }
 
@@ -85,9 +108,6 @@ public class BoneJudgeNew : MonoBehaviour
 
         if (allBones.Count == 0) return;
 
-        // Cubeの当たり判定を拡張する倍率
-        float enlargementFactor = 1.005f;
-
         for (int cubeIndex = 0; cubeIndex < cubes.Length; cubeIndex++)
         {
             if (cubes[cubeIndex] == null) continue;
@@ -97,43 +117,138 @@ public class BoneJudgeNew : MonoBehaviour
             float minDistance = float.MaxValue;
             Vector3 closestTouchPoint = Vector3.zero;
 
-            // Cube の Collider を取得
-            Collider cubeCollider = cubes[cubeIndex].GetComponent<Collider>();
-            if (cubeCollider == null) continue;
-
-            // 両手の各ボーンとの距離をチェック
-            foreach (var bone in allBones)
+            // Sphere Collider を取得
+            SphereCollider sphereCollider = cubes[cubeIndex].GetComponent<SphereCollider>();
+            if (sphereCollider != null)
             {
-                if (bone.Transform == null) continue;
+                // Sphere用の精密な接触判定
+                Vector3 sphereCenter = sphereCollider.transform.TransformPoint(sphereCollider.center);
+                float sphereRadius = sphereCollider.radius * Mathf.Max(
+                    sphereCollider.transform.lossyScale.x, 
+                    sphereCollider.transform.lossyScale.y, 
+                    sphereCollider.transform.lossyScale.z);
 
-                Vector3 bonePosition = bone.Transform.position;
-                Vector3 closestPoint = cubeCollider.ClosestPoint(bonePosition);
-                float distance = Vector3.Distance(bonePosition, closestPoint);
-
-                // 拡張された当たり判定範囲内かチェック
-                Bounds enlargedBounds = cubeCollider.bounds;
-                enlargedBounds.Expand(enlargedBounds.size * (enlargementFactor - 1f));
-
-                if (enlargedBounds.Contains(bonePosition))
+                // 各ボーンとSphereの距離をチェック
+                foreach (var bone in allBones)
                 {
-                    currentlyTouching = true;
-                    if (distance < minDistance)
+                    if (bone.Transform == null) continue;
+
+                    Vector3 bonePosition = bone.Transform.position;
+                    float distanceToCenter = Vector3.Distance(bonePosition, sphereCenter);
+                    
+                    // Sphere表面からの距離を計算
+                    float distanceToSurface = distanceToCenter - sphereRadius;
+
+                    // 動的な閾値設定（ヒステリシス効果）
+                    float effectiveThreshold = sphereContactThreshold;
+                    if (enableContactStabilization && isTouching[cubeIndex])
                     {
-                        minDistance = distance;
-                        closestBone = bone.Transform;
-                        closestTouchPoint = closestPoint;
+                        // 既に接触している場合は、より離れるまで接触を維持
+                        effectiveThreshold += contactHysteresis;
+                    }
+
+                    // 接触判定：Sphere表面に近いか内部にある場合
+                    if (distanceToSurface <= effectiveThreshold)
+                    {
+                        currentlyTouching = true;
+                        if (distanceToCenter < minDistance)
+                        {
+                            minDistance = distanceToCenter;
+                            closestBone = bone.Transform;
+                            // 接触点はSphere表面の最も近い点
+                            closestTouchPoint = sphereCenter + (bonePosition - sphereCenter).normalized * sphereRadius;
+                        }
+                    }
+                }
+
+                if (logContactEvents && currentlyTouching)
+                {
+                    Debug.Log($"Sphere contact detected: Distance to surface = {minDistance - sphereRadius:F3}, Radius = {sphereRadius:F3}, Threshold = {sphereContactThreshold:F3}");
+                }
+            }
+            else
+            {
+                // SphereColliderがない場合は汎用Colliderでフォールバック
+                Collider objectCollider = cubes[cubeIndex].GetComponent<Collider>();
+                if (objectCollider == null) continue;
+
+                // 従来の拡張Bounds判定
+                float enlargementFactor = 1.005f;
+                
+                foreach (var bone in allBones)
+                {
+                    if (bone.Transform == null) continue;
+
+                    Vector3 bonePosition = bone.Transform.position;
+                    Vector3 closestPoint = objectCollider.ClosestPoint(bonePosition);
+                    float distance = Vector3.Distance(bonePosition, closestPoint);
+
+                    // 拡張された当たり判定範囲内かチェック
+                    Bounds enlargedBounds = objectCollider.bounds;
+                    enlargedBounds.Expand(enlargedBounds.size * (enlargementFactor - 1f));
+
+                    if (enlargedBounds.Contains(bonePosition))
+                    {
+                        currentlyTouching = true;
+                        if (distance < minDistance)
+                        {
+                            minDistance = distance;
+                            closestBone = bone.Transform;
+                            closestTouchPoint = closestPoint;
+                        }
+                    }
+                }
+            }
+
+            // 接触安定化処理
+            bool finalTouchingState = currentlyTouching;
+            
+            if (enableContactStabilization)
+            {
+                if (currentlyTouching)
+                {
+                    // 接触検出時のカウンター更新
+                    contactFrameCount[cubeIndex]++;
+                    nonContactFrameCount[cubeIndex] = 0;
+                    
+                    // 一定フレーム以上接触していれば確定
+                    if (contactFrameCount[cubeIndex] >= contactStabilityFrames || isTouching[cubeIndex])
+                    {
+                        finalTouchingState = true;
+                    }
+                    else
+                    {
+                        // まだ安定していない場合は前の状態を維持
+                        finalTouchingState = isTouching[cubeIndex];
+                    }
+                }
+                else
+                {
+                    // 非接触検出時のカウンター更新
+                    nonContactFrameCount[cubeIndex]++;
+                    contactFrameCount[cubeIndex] = 0;
+                    
+                    // 一定フレーム以上非接触でなければ接触状態を維持
+                    if (nonContactFrameCount[cubeIndex] >= contactStabilityFrames)
+                    {
+                        finalTouchingState = false;
+                    }
+                    else
+                    {
+                        // まだ安定していない場合は前の状態を維持
+                        finalTouchingState = isTouching[cubeIndex];
                     }
                 }
             }
 
             // 接触状態の更新
             bool wasNotTouching = !isTouching[cubeIndex];
-            isTouching[cubeIndex] = currentlyTouching;
+            isTouching[cubeIndex] = finalTouchingState;
 
-            if (currentlyTouching)
+            if (finalTouchingState)
             {
                 // 初回接触時または最も近いボーンが変わった場合
-                if (wasNotTouching || fixedClosestBones[cubeIndex] != closestBone)
+                if (wasNotTouching || (closestBone != null && fixedClosestBones[cubeIndex] != closestBone))
                 {
                     fixedClosestBones[cubeIndex] = closestBone;
                     touchPoints[cubeIndex] = closestTouchPoint;
@@ -141,7 +256,13 @@ public class BoneJudgeNew : MonoBehaviour
                     if (logContactEvents)
                     {
                         string handType = GetHandTypeFromBone(closestBone);
-                        Debug.Log($"Contact started with Cube {cubeIndex} using {handType} bone: {closestBone.name}");
+                        string objectType = sphereCollider != null ? "Sphere" : "Object";
+                        Debug.Log($"Contact started with {objectType} {cubeIndex} using {handType} bone: {closestBone.name}");
+                        
+                        if (enableContactStabilization)
+                        {
+                            Debug.Log($"Contact stability: frames={contactFrameCount[cubeIndex]}, threshold={contactStabilityFrames}");
+                        }
                     }
 
                     // Change material on first contact
@@ -161,7 +282,13 @@ public class BoneJudgeNew : MonoBehaviour
 
                 if (logContactEvents)
                 {
-                    Debug.Log($"Contact ended with Cube {cubeIndex}");
+                    string objectType = cubes[cubeIndex].GetComponent<SphereCollider>() != null ? "Sphere" : "Object";
+                    Debug.Log($"Contact ended with {objectType} {cubeIndex}");
+                    
+                    if (enableContactStabilization)
+                    {
+                        Debug.Log($"Contact lost stability: non-contact frames={nonContactFrameCount[cubeIndex]}, threshold={contactStabilityFrames}");
+                    }
                 }
 
                 // Restore original material

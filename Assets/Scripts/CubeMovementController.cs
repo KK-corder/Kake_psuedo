@@ -17,6 +17,11 @@ public class CubeMovementController : MonoBehaviour
     public Vector3 minPosition = new Vector3(-10f, -10f, -10f);
     public Vector3 maxPosition = new Vector3(10f, 10f, 10f);
     
+    [Header("Axis Movement Control")]
+    public bool enableXAxisMovement = false; // X軸移動を無効
+    public bool enableYAxisMovement = true;  // Y軸移動のみ有効
+    public bool enableZAxisMovement = false; // Z軸移動を無効
+    
     [Header("Physics Settings")]
     public bool enableGravityControl = true; // 重力制御を有効にするかどうか
     public float normalGravity = -9.8f; // 通常時の重力加速度
@@ -134,6 +139,12 @@ public class CubeMovementController : MonoBehaviour
 
             // ハンドの移動量に移動倍率をかけてCubeを移動
             Vector3 moveAmount = deltaPosition * moveSpeed;
+            
+            // 軸別移動制御を適用
+            if (!enableXAxisMovement) moveAmount.x = 0f;
+            if (!enableYAxisMovement) moveAmount.y = 0f;
+            if (!enableZAxisMovement) moveAmount.z = 0f;
+            
             Vector3 newPosition = transform.position + moveAmount;
             
             // 位置制限が有効な場合のみクランプ処理を適用
@@ -151,6 +162,7 @@ public class CubeMovementController : MonoBehaviour
             if (showDebugLogs && moveAmount.magnitude > 0.0001f)
             {
                 Debug.Log($"Cube {cubeIndex}: Hand delta = {deltaPosition}, Move amount = {moveAmount}, New position = {newPosition}");
+                Debug.Log($"Cube {cubeIndex}: Axis control - X: {enableXAxisMovement}, Y: {enableYAxisMovement}, Z: {enableZAxisMovement}");
                 if (usePositionConstraints)
                 {
                     Debug.Log($"Cube {cubeIndex}: Position constraints applied. Min: {minPosition}, Max: {maxPosition}");
@@ -223,6 +235,47 @@ public class CubeMovementController : MonoBehaviour
     }
     
     /// <summary>
+    /// 軸別移動制御を設定
+    /// </summary>
+    public void SetAxisMovement(bool enableX, bool enableY, bool enableZ)
+    {
+        enableXAxisMovement = enableX;
+        enableYAxisMovement = enableY;
+        enableZAxisMovement = enableZ;
+        
+        if (showDebugLogs)
+        {
+            Debug.Log($"Cube {cubeIndex}: Axis movement set - X: {enableX}, Y: {enableY}, Z: {enableZ}");
+        }
+    }
+    
+    /// <summary>
+    /// Y軸のみの移動に設定（便利メソッド）
+    /// </summary>
+    public void SetYAxisOnlyMovement()
+    {
+        SetAxisMovement(false, true, false);
+        
+        if (showDebugLogs)
+        {
+            Debug.Log($"Cube {cubeIndex}: Movement restricted to Y-axis only");
+        }
+    }
+    
+    /// <summary>
+    /// 全軸移動を有効化
+    /// </summary>
+    public void SetAllAxisMovement()
+    {
+        SetAxisMovement(true, true, true);
+        
+        if (showDebugLogs)
+        {
+            Debug.Log($"Cube {cubeIndex}: All axis movement enabled");
+        }
+    }
+    
+    /// <summary>
     /// Z軸移動を有効/無効化（後方互換性のため保持）
     /// </summary>
     public void SetZMovementEnabled(bool enabled)
@@ -276,6 +329,7 @@ public class CubeMovementController : MonoBehaviour
         Debug.Log($"Delta Position: {deltaFromPrevious}");
         Debug.Log($"Delta X: {deltaFromPrevious.x:F6}, Y: {deltaFromPrevious.y:F6}, Z: {deltaFromPrevious.z:F6}");
         Debug.Log($"Move Speed: {moveSpeed}");
+        Debug.Log($"Axis Movement Control - X: {enableXAxisMovement}, Y: {enableYAxisMovement}, Z: {enableZAxisMovement}");
         Debug.Log($"Use Position Constraints: {usePositionConstraints}");
         if (usePositionConstraints)
         {
