@@ -37,6 +37,7 @@ public class BoneJudgeNew_reset : MonoBehaviour
     public TaskManage taskManage; // TaskManageの参照
     public CSVloader csvLoader; // CSVLoaderの参照
     public ContactProgressController contactProgressController; // ProgressRateを取得するための参照
+    public BoneJudgeNew_2afc boneJudgeNew2afc; // 2AFC用スクリプトの参照（マテリアル変化判定用）
 
     [Header("Trial Settings")]
     public string userID = "User01"; // ユーザーID
@@ -48,6 +49,17 @@ public class BoneJudgeNew_reset : MonoBehaviour
     // 選択状態管理
     private int selectedObjectIndex = -1; // 現在選択されているオブジェクトのインデックス（-1は未選択）
     private int trialCount = 0; // トライアル回数
+    
+    // CSV出力用の一時データ保存
+    private string pendingWeight = ""; // 選択結果の一時保存
+    private string pendingSession1ProgressRate = ""; // Session1のProgressRateの一時保存
+    private string pendingSession2ProgressRate = ""; // Session2のProgressRateの一時保存
+    private string pending2afcResult = ""; // 2AFC結果の一時保存（1または2）
+    
+    // リセットボタン重複実行防止用
+    private bool isResetProcessing = false; // リセット処理中フラグ
+    private float resetCooldownTime = 0.5f; // リセット後のクールダウン時間（秒）
+    private float lastResetTime = 0f; // 最後のリセット実行時刻
 
     void Start()
     {
@@ -360,34 +372,73 @@ public class BoneJudgeNew_reset : MonoBehaviour
     /// <param name="selectedIndex">選択されたオブジェクトのインデックス</param>
     private void OnSelectionConfirmed(int selectedIndex)
     {
-        // トライアル数を増加
-        trialCount++;
+        // 2AFCの結果を一時保存（CSV出力はリセット時に行う）
+        // インデックスを1ベースに変換（0→1, 1→2, 2→3）
+        pendingWeight = (selectedIndex + 1).ToString();
 
-        // 2AFCの結果を決定（選択されたオブジェクトのインデックス）
-        string weight = selectedIndex.ToString();
+        // 2AFC結果を一時保存（初期値：未選択）
+        pending2afcResult = "0";
 
-        // ProgressRateを取得
-        string progressRate = "0.0";
-        if (contactProgressController != null && contactProgressController.progressIncreaseRate != null)
+        // Session1とSession2のProgressRateを取得
+        pendingSession1ProgressRate = "0.0";
+        pendingSession2ProgressRate = "0.0";
+        
+        if (taskManage != null)
         {
-            // 選択されたオブジェクトに対応するProgressRateを取得
+            // TaskManageから現在のタスクのSession1とSession2のprogressrate値を取得
+            float session1ProgressRate = taskManage.GetCurrentSession1ProgressRate();
+            float session2ProgressRate = taskManage.GetCurrentSession2ProgressRate();
+            
+            pendingSession1ProgressRate = session1ProgressRate.ToString();
+            pendingSession2ProgressRate = session2ProgressRate.ToString();
+        }
+        else if (contactProgressController != null && contactProgressController.progressIncreaseRate != null)
+        {
+            // フォールバック: 従来の方法
             if (selectedIndex < contactProgressController.progressIncreaseRate.Length)
             {
-                progressRate = contactProgressController.progressIncreaseRate[selectedIndex].ToString();
+                pendingSession1ProgressRate = contactProgressController.progressIncreaseRate[selectedIndex].ToString();
             }
         }
 
-        // CSVにデータを保存
-        SaveDataToCSV(weight, progressRate);
+        if (logContactEvents)
+        {
+            Debug.Log($"BoneJudgeNew_reset: Selection confirmed. Weight={pendingWeight}, Session1Rate={pendingSession1ProgressRate}, Session2Rate={pendingSession2ProgressRate}. Waiting for reset to save CSV.");
+        }
 
-        // TaskManageの流れを再開（全てのタスクをリセット）
+        // TaskManageに選択完了を通知
         if (taskManage != null)
         {
-            taskManage.ResetAllCubeTasks();
-            
-            if (logContactEvents)
+            // 全実験完了済みの場合は何もしない
+            if (taskManage.IsAllExperimentsCompleted())
             {
-                Debug.Log($"BoneJudgeNew_reset: TaskManage reset triggered. Trial {trialCount} completed.");
+                if (logContactEvents)
+                {
+                    Debug.Log($"BoneJudgeNew_reset: All experiments completed. No further action.");
+                }
+                return;
+            }
+
+            // セッション2完了後の場合は次のタスクに進む
+            if (taskManage.IsSession2Completed())
+            {
+                taskManage.OnSelectionCompleted();
+                
+                if (logContactEvents)
+                {
+                    Debug.Log($"BoneJudgeNew_reset: Session 2 completed. Moving to next task. Trial {trialCount} completed.");
+                }
+            }
+            else
+            {
+                // 通常の試行完了処理
+                taskManage.OnTrialCompleted();
+                taskManage.ResetAllCubeTasks();
+                
+                if (logContactEvents)
+                {
+                    Debug.Log($"BoneJudgeNew_reset: TaskManage reset triggered. Trial {trialCount} completed.");
+                }
             }
         }
 
@@ -398,33 +449,37 @@ public class BoneJudgeNew_reset : MonoBehaviour
     /// <summary>
     /// CSVにデータを保存
     /// </summary>
-    /// <param name="weight">2AFCの結果</param>
-    /// <param name="progressRate">ProgressRateの値</param>
-    private void SaveDataToCSV(string weight, string progressRate)
+    /// <param name="resetChoice">リセット時の選択結果</param>
+    /// <param name="session1Rate">Session1のProgressRate値</param>
+    /// <param name="session2Rate">Session2のProgressRate値</param>
+    /// <param name="afc2Result">2AFC結果（マテリアル変化したオブジェクト）</param>
+    private void SaveDataToCSV(string resetChoice, string session1Rate, string session2Rate, string afc2Result = "0")
     {
-        if (csvLoader != null)
+        if (csvLoader == null)
+        {
+            Debug.LogWarning("BoneJudgeNew_reset: CSVLoader reference is null. Cannot save data.");
+            return;
+        }
+        
+        try
         {
             // CSVLoaderのSaveDataメソッドを呼び出し
             csvLoader.SaveData(
                 userID,                    // UserID
                 trialCount.ToString(),     // TrialCount
-                progressRate,              // ProgressRate
-                "0",                       // Distance (デフォルト値)
-                "0",                       // IntervalTime (デフォルト値)
-                "0",                       // LimitDistance (デフォルト値)
-                selectedObjectIndex.ToString(), // SelectAnswer (選択されたオブジェクト)
-                "1",                       // TouchCount (デフォルト値)
-                weight                     // Weight (2AFCの結果)
+                session1Rate,              // Session1ProgressRate
+                session2Rate,              // Session2ProgressRate
+                afc2Result                 // Weight (2AFCでマテリアル変化したオブジェクト)
             );
 
             if (logContactEvents)
             {
-                Debug.Log($"BoneJudgeNew_reset: Data saved to CSV - Trial: {trialCount}, Weight: {weight}, Rate: {progressRate}");
+                Debug.Log($"BoneJudgeNew_reset: Data saved to CSV - Trial: {trialCount}, Weight(2AFC): {afc2Result}, Session1Rate: {session1Rate}, Session2Rate: {session2Rate}");
             }
         }
-        else
+        catch (System.Exception e)
         {
-            Debug.LogWarning("BoneJudgeNew_reset: CSVLoader reference is null. Cannot save data.");
+            Debug.LogError($"BoneJudgeNew_reset: Failed to save data to CSV. Error: {e.Message}");
         }
     }
 
@@ -544,6 +599,91 @@ public class BoneJudgeNew_reset : MonoBehaviour
         if (logContactEvents)
         {
             Debug.Log("BoneJudgeNew_reset: Experiment fully reset");
+        }
+    }
+
+    /// <summary>
+    /// トライアルカウントを増加（リセット時に呼ばれる）
+    /// </summary>
+    public void IncrementTrialCount()
+    {
+        // リセット処理中またはクールダウン中の場合は実行しない
+        if (isResetProcessing || Time.time - lastResetTime < resetCooldownTime)
+        {
+            if (logContactEvents)
+            {
+                Debug.Log($"BoneJudgeNew_reset: Reset ignored - processing: {isResetProcessing}, cooldown remaining: {resetCooldownTime - (Time.time - lastResetTime):F2}s");
+            }
+            return;
+        }
+
+        // リセット処理開始
+        isResetProcessing = true;
+        lastResetTime = Time.time;
+        
+        trialCount++;
+        
+        // リセット時に2AFCマテリアル変化状態を取得
+        pending2afcResult = "0";
+        if (boneJudgeNew2afc != null)
+        {
+            int materialChangedIndex = boneJudgeNew2afc.GetMaterialChangedObjectIndex();
+            pending2afcResult = materialChangedIndex.ToString();
+            
+            if (logContactEvents)
+            {
+                Debug.Log($"BoneJudgeNew_reset: Material changed object index: {materialChangedIndex}");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("BoneJudgeNew_reset: boneJudgeNew2afc reference is null");
+        }
+        
+        // リセット時にCSV出力を実行
+        if (!string.IsNullOrEmpty(pendingWeight) && !string.IsNullOrEmpty(pendingSession1ProgressRate) && !string.IsNullOrEmpty(pendingSession2ProgressRate))
+        {
+            SaveDataToCSV(pendingWeight, pendingSession1ProgressRate, pendingSession2ProgressRate, pending2afcResult);
+            
+            if (logContactEvents)
+            {
+                Debug.Log($"BoneJudgeNew_reset: CSV saved on reset. Weight(Reset): {pendingWeight}, Session1Rate: {pendingSession1ProgressRate}, Session2Rate: {pendingSession2ProgressRate}, 2AFC: {pending2afcResult}");
+            }
+            
+            // 一時データをクリア
+            pendingWeight = "";
+            pendingSession1ProgressRate = "";
+            pendingSession2ProgressRate = "";
+            pending2afcResult = "";
+        }
+        
+        if (logContactEvents)
+        {
+            Debug.Log($"BoneJudgeNew_reset: Trial count incremented to {trialCount}");
+        }
+
+        // TaskManageには次のタスクへの切り替えは要求しない
+        // （SelectObject内で既にOnSelectionCompleted()が呼ばれているため）
+        if (logContactEvents)
+        {
+            Debug.Log($"BoneJudgeNew_reset: Trial count increment completed. Task transition handled by SelectObject.");
+        }
+
+        // 少し遅延してリセット処理完了フラグをクリア
+        StartCoroutine(ResetProcessingFlag());
+    }
+
+    /// <summary>
+    /// リセット処理完了後にフラグをクリアするコルーチン
+    /// </summary>
+    private System.Collections.IEnumerator ResetProcessingFlag()
+    {
+        yield return new WaitForSeconds(0.1f); // 短い遅延
+        isResetProcessing = false;
+        
+        if (logContactEvents)
+        {
+            Debug.Log($"BoneJudgeNew_reset: Reset processing flag cleared");
         }
     }
 }

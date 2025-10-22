@@ -1,23 +1,108 @@
 UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-User01,1,10,0,0,0,0,1,0
-User01,2,10,0,0,0,0,1,0
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
 1,1,10,0,0,0,0,1,0
+1,2,10,0,0,0,0,1,0
+1,3,10,0,0,0,0,1,0
+1,4,10,0,0,0,0,1,0
+1,5,10,0,0,0,0,1,0
+1,6,10,0,0,0,0,1,0
+1,7,18,0,0,0,0,1,0
+1,8,18,0,0,0,0,1,0
+1,9,18,0,0,0,0,1,0
+1,10,6,0,0,0,0,1,0
+1,11,6,0,0,0,0,1,0
+1,12,6,0,0,0,0,1,0
 UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-1,1,10,0,0,0,0,1,0
+22,0,2,0,0,0,0,1,0
+22,0,2,0,0,0,0,1,0
 UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
-1,1,10,0,0,0,0,1,0
 UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+44,1,14,0,0,0,0,1,1
+44,2,18,0,0,0,0,1,1
+UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+1,1,14,0,0,0,0,1,1
+1,2,14,0,0,0,0,1,1
+1,3,14,0,0,0,0,1,1
+UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+0,1,10,0,0,0,0,1,1
+0,2,10,0,0,0,0,1,1
+0,3,14,0,0,0,0,1,1
+0,4,14,0,0,0,0,1,1
+UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+0,1,10,0,0,0,0,1,1
+0,2,18,0,0,0,0,1,1
+UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+0,1,14,0,0,0,1,1,0
+0,2,14,0,0,0,1,1,0
+UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+0,1,2,0,0,0,1,1,1
+0,2,2,0,0,0,1,1,2
+UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight
+0,1,14,0,0,0,1,1,2
+0,2,6,0,0,0,1,1,2
+0,3,14,0,0,0,1,1,1
+0,4,10,0,0,0,1,1,1
+0,5,10,0,0,0,1,1,2
+0,6,2,0,0,0,1,1,1
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,Distance,IntervalTime,LimitDistance,selectanswer,TouchCount,weight
+0,1,15,0,0,0,0,1,1,2
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,Distance,IntervalTime,LimitDistance,selectanswer,TouchCount,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,Distance,IntervalTime,LimitDistance,selectanswer,TouchCount,weight
+0,1,5,0,0,0,0,1,1,1
+0,2,0,10,0,0,0,1,1,2
+0,3,0,25,0,0,0,1,1,1
+0,4,25,0,0,0,0,1,1,2
+0,5,10,0,0,0,0,1,1,1
+0,6,15,0,0,0,0,1,1,2
+0,7,0,20,0,0,0,1,1,1
+0,8,0,15,0,0,0,1,1,2
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,Distance,IntervalTime,LimitDistance,selectanswer,TouchCount,weight
+0,1,10,0,0,0,0,1,1,1
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+riki,1,0,40,1
+riki,2,20,0,2
+riki,3,10,0,1
+riki,4,0,30,1
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+num1,1,0,20,1
+num1,2,0,20,1
+num1,3,0,50,1
+num1,4,0,50,1
+num1,5,0,30,2
+num1,6,0,20,2
+num1,7,0,20,2
+num1,8,0,10,2
+num1,9,50,0,1
+num1,10,0,20,2
+num1,11,0,20,2
+num1,12,40,0,1
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+num1,1,0,50,2
+num1,2,0,65,1
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+num1,1,0,5,1
+num1,2,20,0,2
+num1,3,0,35,1
+num1,4,65,0,2
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+num1,1,0,85,2
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+num1,1,0,25,2
+num1,2,0,5,2
+num1,3,0,65,2
+UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight
+num1,1,45,0,1
+num1,2,0,65,2
+num1,3,0,5,2
+num1,4,25,0,2
+num1,5,0,85,1

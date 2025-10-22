@@ -51,7 +51,7 @@ public class ContactProgressController : MonoBehaviour
         {
             // 接触がなくなった場合はリセット
             contactTime[i] = 0f;
-            currentProgress[i] = 1f;
+            currentProgress[i] = 1.0f; // 初期値を1.0に変更
             contactStartPosition[i] = Vector3.zero;
             wasContactingLastFrame[i] = false;
         }
@@ -142,7 +142,7 @@ public class ContactProgressController : MonoBehaviour
             {
                 // 接触がなくなった場合はリセット
                 contactTime[i] = 0f;
-                currentProgress[i] = 1f;
+                currentProgress[i] = 1.0f; // リセット時も1.0に変更
                 wasContactingLastFrame[i] = false;
 
                 // デバッグログでリセットを確認
@@ -152,15 +152,15 @@ public class ContactProgressController : MonoBehaviour
             // シェーダーの _Progress プロパティを初期値に戻す
             if (handTransitionMaterial != null)
             {
-                handTransitionMaterial.SetFloat("_Progress", 1.0f);
+                handTransitionMaterial.SetFloat("_Progress", 1.0f); // シェーダーも1.0に変更
                 //Debug.Log("Reset _Progress to 1.0f");
             }
         }
 
         for (int i = 0; i < bonejudgeNew.cubes.Length; i++)
         {
-            // currentProgress を 0～1 の範囲にクランプ
-            currentProgress[i] = Mathf.Clamp01(currentProgress[i]);
+            // currentProgress を 0～1.0 の範囲にクランプ
+            currentProgress[i] = Mathf.Clamp(currentProgress[i], 0f, 1.0f);
 
             if (bonejudgeNew.isTouching[i])
             {

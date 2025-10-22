@@ -10,18 +10,15 @@ public class CSVloader : MonoBehaviour
     {
         sw = new StreamWriter(@"SaveData.csv", true, Encoding.GetEncoding("Shift_JIS"));
 
-        string header = "UserID,TrialCount,ProgressRate, Distance, IntervalTime, LimitDistance, selectanswer, TouchCount, weight";
+        string header = "UserID,TrialCount,Session1ProgressRate,Session2ProgressRate,weight";
         sw.WriteLine(header);
         sw.Flush();
     }
 
     public void SaveData(
-        string userID, string trial, string rate,
-        string distance, string interval,
-        string limitDistance, string selectAnswer, string touchCount, string weight)
+        string userID, string trial, string session1Rate, string session2Rate, string weight)
     {
-        string line = $"{userID},{trial},{rate},{distance}," +
-                      $"{interval},{limitDistance},{selectAnswer},{touchCount},{weight}";
+        string line = $"{userID},{trial},{session1Rate},{session2Rate},{weight}";
         sw.WriteLine(line);
         sw.Flush();
     }

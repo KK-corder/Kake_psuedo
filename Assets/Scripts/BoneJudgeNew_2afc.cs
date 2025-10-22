@@ -405,4 +405,44 @@ public class BoneJudgeNew_2afc : MonoBehaviour
     {
         SelectObject(objectIndex);
     }
+
+    /// <summary>
+    /// マテリアルが変化しているオブジェクトのインデックスを取得
+    /// </summary>
+    /// <returns>マテリアルが変化しているオブジェクトのインデックス（1ベース）、変化していない場合は0</returns>
+    public int GetMaterialChangedObjectIndex()
+    {
+        if (cubes == null || selectedMaterial == null || originalMaterials == null)
+        {
+            if (logContactEvents)
+            {
+                Debug.Log("BoneJudgeNew_2afc: GetMaterialChangedObjectIndex - null references");
+            }
+            return 0;
+        }
+
+        for (int i = 0; i < cubes.Length; i++)
+        {
+            if (cubes[i] == null) continue;
+
+            Renderer renderer = cubes[i].GetComponent<Renderer>();
+            if (renderer == null) continue;
+
+            // 現在のマテリアルが選択マテリアルと同じかチェック
+            if (renderer.sharedMaterial == selectedMaterial)
+            {
+                if (logContactEvents)
+                {
+                    Debug.Log($"BoneJudgeNew_2afc: Material changed object found at index {i}, returning {i + 1}");
+                }
+                return i + 1; // 1ベースで返す
+            }
+        }
+
+        if (logContactEvents)
+        {
+            Debug.Log("BoneJudgeNew_2afc: No material changed object found");
+        }
+        return 0; // 変化していない場合
+    }
 }

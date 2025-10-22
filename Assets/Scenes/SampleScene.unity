@@ -533,14 +533,29 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   cubes:
   - {fileID: 1738819947}
-  yThreshold: 2.643
+  yThreshold: 2.65
   defaultPositions: []
   questionObjects:
   - {fileID: 714436171}
   instructionText: {fileID: 1080854614}
   initialMessage: session 1
-  secondMessage: session 2
+  secondMessage: "session2\u3078\u79FB\u308A\u307E\u3059"
   finalMessage: "\u3069\u3061\u3089\u306Ecube\u3092\u3088\u308A\u91CD\u304F\u611F\u3058\u307E\u3057\u305F\u304B"
+  sessionTransitionMessage: "session2\u306B\u3046\u3064\u308A\u307E\u3059"
+  session2Message: session2
+  contactProgressController: {fileID: 915006623}
+  boneJudgeNewReset: {fileID: 1628848072}
+  progressRateValues:
+  - 10
+  - 30
+  - 50
+  - 70
+  - 90
+  totalTasks: 25
+  trialsPerProgressRate: 5
+  trialsPerPattern: 5
+  autoStartExperiment: 1
+  sessionTransitionDuration: 3
   showDebugLogs: 1
 --- !u!1 &360214263
 GameObject:
@@ -971,12 +986,12 @@ Light:
   serializedVersion: 10
   m_Type: 1
   m_Shape: 0
-  m_Color: {r: 1, g: 0.95686275, b: 0.8392157, a: 1}
-  m_Intensity: 1
+  m_Color: {r: 1, g: 1, b: 1, a: 1}
+  m_Intensity: 84.06
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
-  m_CookieSize: 10
+  m_CookieSize: 98.93
   m_Shadows:
     m_Type: 2
     m_Resolution: -1
@@ -1014,7 +1029,7 @@ Light:
   m_Lightmapping: 1
   m_LightShadowCasterMode: 0
   m_AreaSize: {x: 1, y: 1}
-  m_BounceIntensity: 1
+  m_BounceIntensity: 32.87
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
@@ -1074,6 +1089,7 @@ Transform:
   m_Children:
   - {fileID: 1864124906}
   - {fileID: 1259755256}
+  - {fileID: 1628848071}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &714436173
@@ -1529,7 +1545,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   bonejudgeNew: {fileID: 2107517494}
   progressSet: {fileID: 195092039}
-  taskmanage: {fileID: 0}
+  taskmanage: {fileID: 267400263}
   handTransitionMaterial: {fileID: 2100000, guid: b3da8300596626746b0ea9df6522c2a3, type: 2}
   progressIncreaseRate:
   - 10
@@ -2289,7 +2305,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!54 &1196989498
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2397,8 +2413,8 @@ Transform:
   m_GameObject: {fileID: 1196989497}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.643, z: -0.32399997}
-  m_LocalScale: {x: 10, y: 0.05, z: 10}
+  m_LocalPosition: {x: 0, y: 2.401, z: 0.82}
+  m_LocalScale: {x: 1, y: 0.15, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -2636,7 +2652,7 @@ Transform:
   m_GameObject: {fileID: 1259755255}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.4, y: 1.6859999, z: -0.96000004}
+  m_LocalPosition: {x: 0.3, y: 1.6859999, z: -0.96000004}
   m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -3112,11 +3128,11 @@ Transform:
   m_GameObject: {fileID: 1628848067}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.554, y: 2.136, z: 0.432}
-  m_LocalScale: {x: 0.10000001, y: 0.10000001, z: 0.10000001}
+  m_LocalPosition: {x: 0.931, y: 1.6859999, z: -1.1340001}
+  m_LocalScale: {x: 0.20000002, y: 0.20000002, z: 0.20000002}
   m_ConstrainProportionsScale: 1
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 714436172}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1628848072
 MonoBehaviour:
@@ -3142,7 +3158,8 @@ MonoBehaviour:
   taskManage: {fileID: 267400263}
   csvLoader: {fileID: 929457231}
   contactProgressController: {fileID: 915006623}
-  userID: 1
+  boneJudgeNew2afc: {fileID: 714436173}
+  userID: num1
   logContactEvents: 1
 --- !u!1 &1633876621 stripped
 GameObject:
@@ -3931,8 +3948,8 @@ Transform:
   m_GameObject: {fileID: 1738819947}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.356, z: 0.043}
-  m_LocalScale: {x: 1, y: 0.05, z: 1}
+  m_LocalPosition: {x: 0, y: 2.35, z: 0.466}
+  m_LocalScale: {x: 0.5, y: 0.05, z: 0.5}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -4190,7 +4207,7 @@ Transform:
   m_GameObject: {fileID: 1864124905}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.4, y: 1.6859999, z: -0.96000004}
+  m_LocalPosition: {x: -0.3, y: 1.6859999, z: -0.96000004}
   m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -4933,7 +4950,6 @@ SceneRoots:
   - {fileID: 1196989502}
   - {fileID: 1104112173}
   - {fileID: 1257283285}
-  - {fileID: 1628848071}
   - {fileID: 714436172}
   - {fileID: 660736305}
   - {fileID: 1329634818}

@@ -86,7 +86,7 @@ public class BoneJudgeNew : MonoBehaviour
         if (allBones.Count == 0) return;
 
         // Cubeの当たり判定を拡張する倍率
-        float enlargementFactor = 2.0f;
+        float enlargementFactor = 1.005f;
 
         for (int cubeIndex = 0; cubeIndex < cubes.Length; cubeIndex++)
         {
