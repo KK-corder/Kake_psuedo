@@ -6,7 +6,11 @@ public class TaskManage : MonoBehaviour
 {
     [Header("Cube Settings")]
     public GameObject[] cubes; // 管理対象のキューブ配列
-    public float yThreshold = 2.0f; // Y座標の閾値
+    [HideInInspector] public float yThreshold = 2.0f; // Y座標の閾値（手動設定用、target_limitがある場合は自動更新）
+    
+    [Header("Target Limit Object")]
+    public GameObject target_limit; // Y threshold自動取得用のターゲットオブジェクト
+    public bool autoUpdateYThreshold = true; // Y thresholdの自動更新を有効にするか
     
     [Header("Default Positions")]
     [SerializeField] private Vector3[] defaultPositions; // 各キューブのデフォルト位置（自動取得）
@@ -142,6 +146,9 @@ public class TaskManage : MonoBehaviour
             hasReachedThresholdOnce[i] = false;
             isCompleted[i] = false;
         }
+
+        // target_limitからY thresholdを自動取得
+        UpdateYThresholdFromTargetLimit();
 
         // 初期テキストを設定
         UpdateInstructionText();
@@ -910,15 +917,27 @@ public class TaskManage : MonoBehaviour
     }
 
     /// <summary>
-    /// Y座標の閾値を動的に変更
+    /// Y座標の閾値を動的に変更（レガシーメソッド - 新しいコードではUpdateYThresholdAndTargetを使用推奨）
     /// </summary>
     public void SetYThreshold(float newThreshold)
     {
+        float previousThreshold = yThreshold;
         yThreshold = newThreshold;
+        
+        // target_limitオブジェクトも更新（自動更新が有効な場合）
+        if (target_limit != null && autoUpdateYThreshold)
+        {
+            Vector3 currentPos = target_limit.transform.position;
+            target_limit.transform.position = new Vector3(currentPos.x, newThreshold, currentPos.z);
+        }
         
         if (showDebugLogs)
         {
-            Debug.Log($"TaskManage: Y threshold changed to {newThreshold}");
+            Debug.Log($"TaskManage: Y threshold changed from {previousThreshold:F3} to {newThreshold:F3}");
+            if (target_limit != null && autoUpdateYThreshold)
+            {
+                Debug.Log($"TaskManage: target_limit position also updated to Y={newThreshold:F3}");
+            }
         }
     }
 
@@ -1159,6 +1178,82 @@ public class TaskManage : MonoBehaviour
                     Debug.Log($"Cube[{i}]: ReachedOnce={hasReachedThresholdOnce[i]}, Completed={isCompleted[i]}, CurrentY={cubes[i].transform.position.y:F2}, DefaultPos={defaultPositions[i]}");
                 }
             }
+        }
+    }
+    
+    /// <summary>
+    /// target_limitオブジェクトのY座標からY thresholdを自動更新
+    /// </summary>
+    private void UpdateYThresholdFromTargetLimit()
+    {
+        if (!autoUpdateYThreshold)
+        {
+            if (showDebugLogs)
+            {
+                Debug.Log("TaskManage: Auto Y threshold update is disabled");
+            }
+            return;
+        }
+
+        if (target_limit == null)
+        {
+            if (showDebugLogs)
+            {
+                Debug.LogWarning("TaskManage: target_limit object is not assigned. Using manual Y threshold value.");
+            }
+            return;
+        }
+
+        float previousThreshold = yThreshold;
+        yThreshold = target_limit.transform.position.y;
+
+        if (showDebugLogs)
+        {
+            Debug.Log($"TaskManage: Y threshold updated from target_limit. Previous: {previousThreshold:F3}, New: {yThreshold:F3}");
+            Debug.Log($"TaskManage: target_limit position: {target_limit.transform.position}");
+        }
+    }
+    
+    /// <summary>
+    /// Y thresholdを手動で更新し、target_limitオブジェクトも更新（必要に応じて）
+    /// </summary>
+    public void UpdateYThresholdAndTarget(float newThreshold)
+    {
+        float previousThreshold = yThreshold;
+        yThreshold = newThreshold;
+        
+        // target_limitがある場合は、その位置も更新
+        if (target_limit != null && autoUpdateYThreshold)
+        {
+            Vector3 currentPos = target_limit.transform.position;
+            target_limit.transform.position = new Vector3(currentPos.x, newThreshold, currentPos.z);
+            
+            if (showDebugLogs)
+            {
+                Debug.Log($"TaskManage: Updated both Y threshold ({previousThreshold:F3} -> {newThreshold:F3}) and target_limit position");
+            }
+        }
+        else
+        {
+            if (showDebugLogs)
+            {
+                Debug.Log($"TaskManage: Updated Y threshold only ({previousThreshold:F3} -> {newThreshold:F3})");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// target_limitオブジェクトからY thresholdを強制再取得
+    /// </summary>
+    public void RefreshYThresholdFromTarget()
+    {
+        if (target_limit != null)
+        {
+            UpdateYThresholdFromTargetLimit();
+        }
+        else
+        {
+            Debug.LogWarning("TaskManage: Cannot refresh Y threshold - target_limit object is not assigned");
         }
     }
 }

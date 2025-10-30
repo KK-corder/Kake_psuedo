@@ -1,9 +1,11 @@
+using System;
 using UnityEngine;
 
 public class PointMarker : MonoBehaviour
 {
     [Header("Reference Settings")]
-    public BoneJudge boneJudge; // BoneJudgeの参照
+    public BoneJudgeNew boneJudge; // BoneJudgeの参照
+    public ProgressSet progressset;
     
     [Header("Point Settings")]
     public Vector3 startPoint = new Vector3(0, 0, 0);
@@ -42,9 +44,9 @@ public class PointMarker : MonoBehaviour
         // BoneJudgeから座標を取得
         if (useReferencePoints && boneJudge != null)
         {
-            Vector3 newStartPoint = boneJudge.progressStart;
-            Vector3 newEndPoint = boneJudge.progressEnd;
-            
+            Vector3 newStartPoint = progressset.progressStart;
+            Vector3 newEndPoint = progressset.progressEnd;
+
             // 座標が変化した場合のみ更新（パフォーマンス向上）
             if (newStartPoint != startPoint || newEndPoint != endPoint)
             {
@@ -118,8 +120,8 @@ public class PointMarker : MonoBehaviour
         // BoneJudgeから最新の座標を取得
         if (useReferencePoints && boneJudge != null)
         {
-            startPoint = boneJudge.progressStart;
-            endPoint = boneJudge.progressEnd;
+            startPoint = progressset.progressStart;
+            endPoint = progressset.progressEnd;
         }
         
         if (startSphere != null)
@@ -228,8 +230,8 @@ public class PointMarker : MonoBehaviour
         
         if (useReferencePoints && boneJudge != null)
         {
-            displayStartPoint = boneJudge.progressStart;
-            displayEndPoint = boneJudge.progressEnd;
+            displayStartPoint = progressset.progressStart;
+            displayEndPoint = progressset.progressEnd;
         }
         
         // Start Point
@@ -250,10 +252,10 @@ public class PointMarker : MonoBehaviour
     /// </summary>
     public void RefreshPointsFromBoneJudge()
     {
-        if (boneJudge != null)
+        if (progressset != null)
         {
-            startPoint = boneJudge.progressStart;
-            endPoint = boneJudge.progressEnd;
+            startPoint = progressset.progressStart;
+            endPoint = progressset.progressEnd;
             UpdateSpherePositions();
             Debug.Log($"PointMarker: Refreshed points from BoneJudge - Start: {startPoint}, End: {endPoint}");
         }
@@ -266,7 +268,7 @@ public class PointMarker : MonoBehaviour
     /// <summary>
     /// BoneJudgeの参照を設定し、座標を取得します
     /// </summary>
-    public void SetBoneJudgeReference(BoneJudge boneJudgeRef)
+    public void SetBoneJudgeReference(BoneJudgeNew boneJudgeRef)
     {
         boneJudge = boneJudgeRef;
         useReferencePoints = (boneJudge != null);
@@ -283,8 +285,8 @@ public class PointMarker : MonoBehaviour
     {
         if (boneJudge != null)
         {
-            Debug.Log($"BoneJudge ProgressStart: {boneJudge.progressStart}");
-            Debug.Log($"BoneJudge ProgressEnd: {boneJudge.progressEnd}");
+            Debug.Log($"BoneJudge ProgressStart: {progressset.progressStart}");
+            Debug.Log($"BoneJudge ProgressEnd: {progressset.progressEnd}");
             Debug.Log($"PointMarker StartPoint: {startPoint}");
             Debug.Log($"PointMarker EndPoint: {endPoint}");
             
