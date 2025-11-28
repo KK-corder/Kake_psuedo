@@ -75,22 +75,10 @@ public class CubeMovementController : MonoBehaviour
             enableGravityControl = false;
         }
         
-        // 初期状態では通常の重力を設定（接触していない状態）
-        if (enableGravityControl && !gravityControllerExists)
-        {
-            Physics.gravity = new Vector3(0, normalGravity, 0);
-            gravityControllerExists = true;
-            
-            if (showDebugLogs)
-            {
-                Debug.Log($"CubeMovementController: Cube {cubeIndex} set initial gravity to {normalGravity} m/s²");
-            }
-        }
-        
-        // Rigidbodyの重力使用フラグは常にtrueにしておく
+        // 初期状態では重力を有効にしておく（接触していない状態）
         if (cubeRigidbody != null)
         {
-            cubeRigidbody.useGravity = true;
+            cubeRigidbody.useGravity = true; // 初期状態は重力有効
         }
         
         if (showDebugLogs)
@@ -124,19 +112,17 @@ public class CubeMovementController : MonoBehaviour
             // 接触開始時の処理
             if (!wasContactingLastFrame && enableGravityControl)
             {
-                // 重力加速度を0に設定
-                Physics.gravity = new Vector3(0, contactGravity, 0);
-                
-                // 物理的な速度をリセットして手動制御に移行
+                // このオブジェクトの重力を無効化（個別制御）
                 if (cubeRigidbody != null)
                 {
-                    cubeRigidbody.velocity = Vector3.zero;
-                    cubeRigidbody.angularVelocity = Vector3.zero;
+                    cubeRigidbody.useGravity = false; // 重力を無効化
+                    cubeRigidbody.velocity = Vector3.zero; // 速度リセット
+                    cubeRigidbody.angularVelocity = Vector3.zero; // 角速度リセット
                 }
                 
                 if (showDebugLogs)
                 {
-                    Debug.Log($"Cube {cubeIndex}: Contact started - Gravity acceleration set to {contactGravity} m/s², velocity reset");
+                    Debug.Log($"Cube {cubeIndex}: Contact+Grab started - Gravity disabled, velocity reset");
                 }
             }
             
@@ -197,12 +183,15 @@ public class CubeMovementController : MonoBehaviour
             // 動作条件が満たされなくなった時の処理
             if (wasContactingLastFrame && enableGravityControl)
             {
-                // 重力加速度を通常値に戻す
-                Physics.gravity = new Vector3(0, normalGravity, 0);
+                // このオブジェクトの重力を有効化（個別制御）
+                if (cubeRigidbody != null)
+                {
+                    cubeRigidbody.useGravity = true; // 重力を有効化
+                }
                 
                 if (showDebugLogs)
                 {
-                    Debug.Log($"Cube {cubeIndex}: Movement condition not met - Gravity acceleration restored to {normalGravity} m/s²");
+                    Debug.Log($"Cube {cubeIndex}: Movement condition not met - Gravity enabled");
                 }
             }
             
@@ -216,15 +205,14 @@ public class CubeMovementController : MonoBehaviour
 
     void OnDestroy()
     {
-        // オブジェクト破棄時に重力を通常値に戻す
-        if (enableGravityControl && gravityControllerExists)
+        // オブジェクト破棄時に重力を有効化しておく
+        if (enableGravityControl && cubeRigidbody != null)
         {
-            Physics.gravity = new Vector3(0, normalGravity, 0);
-            gravityControllerExists = false;
+            cubeRigidbody.useGravity = true; // 重力を有効化
             
             if (showDebugLogs)
             {
-                Debug.Log($"CubeMovementController: Cube {cubeIndex} destroyed - Gravity restored to {normalGravity} m/s²");
+                Debug.Log($"CubeMovementController: Cube {cubeIndex} destroyed - Gravity enabled");
             }
         }
     }

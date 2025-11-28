@@ -418,7 +418,6 @@ GameObject:
   - component: {fileID: 292698656}
   - component: {fileID: 292698655}
   - component: {fileID: 292698654}
-  - component: {fileID: 292698653}
   m_Layer: 0
   m_Name: Cylinder_midium
   m_TagString: Untagged
@@ -426,33 +425,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!54 &292698653
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 292698652}
-  serializedVersion: 4
-  m_Mass: 1
-  m_Drag: 0
-  m_AngularDrag: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 1
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
 --- !u!136 &292698654
 CapsuleCollider:
   m_ObjectHideFlags: 0
@@ -1160,10 +1132,10 @@ Rigidbody:
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
   m_UseGravity: 1
-  m_IsKinematic: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
 --- !u!4 &647494313 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 7592906017111131896, guid: 46a37224061a67f4fb211d7d2fac7a1a, type: 3}
@@ -4758,6 +4730,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1724481354}
   - component: {fileID: 1724481355}
+  - component: {fileID: 1724481356}
   m_Layer: 0
   m_Name: Dumbell_midium
   m_TagString: Untagged
@@ -4809,10 +4782,37 @@ MonoBehaviour:
   enableXAxisMovement: 1
   enableYAxisMovement: 1
   enableZAxisMovement: 1
-  enableGravityControl: 1
+  enableGravityControl: 0
   normalGravity: -9.8
   contactGravity: 0
   showDebugLogs: 0
+--- !u!54 &1724481356
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1724481353}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
 --- !u!1 &1732741976
 GameObject:
   m_ObjectHideFlags: 0
@@ -5726,10 +5726,10 @@ Rigidbody:
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
   m_UseGravity: 1
-  m_IsKinematic: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
 --- !u!1 &1890171748
 GameObject:
   m_ObjectHideFlags: 0
@@ -5859,10 +5859,10 @@ Rigidbody:
   m_ImplicitCom: 1
   m_ImplicitTensor: 1
   m_UseGravity: 1
-  m_IsKinematic: 0
+  m_IsKinematic: 1
   m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 1
 --- !u!1001 &1896273267
 PrefabInstance:
   m_ObjectHideFlags: 0
