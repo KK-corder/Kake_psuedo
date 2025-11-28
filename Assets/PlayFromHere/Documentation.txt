@@ -1,0 +1,16 @@
+1-This tool is simple just have a object in your scene with the tag Player.
+
+2-Then Shift+Right Click on a object and select Play From here.
+
+If you dont want to use tags add the component PFH_Player to your player.
+
+To configure the plugin click on the window Play From Here >> Config, or go to the folder PlayFromHere>Resources>Config>PFH_Config.asset 
+
+Explaining the configs:
+
+-Offset: If you character needs a offset for example 1 unit on Z.
+-Rotate Player With View: If you want your player to rotate based on the scene view. If you disable the player will keep the rotation.
+-Keep X,Y,Z: Keep the current player position on the desired axis.
+
+
+I will improve and add more features to this tool in the future, if you have sugestions just mail me. kelvinparkour@gmail.com

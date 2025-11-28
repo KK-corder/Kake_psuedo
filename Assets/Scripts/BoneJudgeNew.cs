@@ -12,15 +12,34 @@ public class BoneJudgeNew : MonoBehaviour
 
 
     [Header("Target Objects")]
-    // 接触オブジェクト（Sphereなど）をインスペクターでアタッチ
-    // Sphere: 中心からの距離で精密判定を行います
+    // 接触オブジェクトをインスペクターでアタッチ
+    // 対応Collider: SphereCollider, CapsuleCollider（円柱）, BoxCollider, MeshCollider
+    // 各形状に最適化された精密判定を自動選択
     public GameObject[] cubes = new GameObject[3];
 
-    [Header("Sphere Contact Settings")]
-    // Sphere用の接触判定距離設定
+    [Header("Contact Range Settings")]
+    // 各形状用の接触判定距離設定
     public float sphereContactThreshold = 0.02f; // Sphere表面からの接触判定距離（拡大）
     
-    [Header("Contact Stability Settings")]
+    [Header("Capsule Contact Settings")]
+    // Capsule（円柱）専用設定 - 体積内接触判定
+    public bool useVolumeBasedDetection = true; // 円柱体積内での接触判定を使用
+    public bool showDebugInfo = true; // デバッグ情報を表示
+    
+    [Header("Contact Sensitivity Settings")]
+    // 接触判定の甘さ調整
+    [Range(1.0f, 2.0f)]
+    public float radiusMultiplier = 1.1f; // 半径の拡大倍率（1.1 = 10%拡大）
+    [Range(1.0f, 2.0f)]
+    public float heightMultiplier = 1.05f; // 高さの拡大倍率（1.05 = 5%拡大）
+    [Range(0.0f, 0.05f)]
+    public float contactMargin = 0.01f; // 追加の接触マージン（1cm）
+    
+    [HideInInspector] // Other threshold settings - Hidden
+    public float boxContactThreshold = 0.02f; // Box（立方体）表面からの接触判定距離
+    public float genericContactThreshold = 0.02f; // その他のCollider表面からの接触判定距離
+    
+    [HideInInspector] // Contact Stability Settings - Hidden
     // 接触安定化のための設定
     public float contactHysteresis = 0.005f; // ヒステリシス効果（接触継続のための追加距離）
     public int contactStabilityFrames = 3; // 接触状態を安定化するフレーム数
@@ -168,35 +187,25 @@ public class BoneJudgeNew : MonoBehaviour
             }
             else
             {
-                // SphereColliderがない場合は汎用Colliderでフォールバック
+                // Sphere以外のCollider処理
                 Collider objectCollider = cubes[cubeIndex].GetComponent<Collider>();
                 if (objectCollider == null) continue;
 
-                // 従来の拡張Bounds判定
-                float enlargementFactor = 1.005f;
-                
-                foreach (var bone in allBones)
+                // CapsuleCollider（円柱形）の特別処理
+                CapsuleCollider capsuleCollider = objectCollider as CapsuleCollider;
+                if (capsuleCollider != null)
                 {
-                    if (bone.Transform == null) continue;
-
-                    Vector3 bonePosition = bone.Transform.position;
-                    Vector3 closestPoint = objectCollider.ClosestPoint(bonePosition);
-                    float distance = Vector3.Distance(bonePosition, closestPoint);
-
-                    // 拡張された当たり判定範囲内かチェック
-                    Bounds enlargedBounds = objectCollider.bounds;
-                    enlargedBounds.Expand(enlargedBounds.size * (enlargementFactor - 1f));
-
-                    if (enlargedBounds.Contains(bonePosition))
-                    {
-                        currentlyTouching = true;
-                        if (distance < minDistance)
-                        {
-                            minDistance = distance;
-                            closestBone = bone.Transform;
-                            closestTouchPoint = closestPoint;
-                        }
-                    }
+                    ProcessCapsuleCollision(capsuleCollider, cubeIndex, allBones, ref currentlyTouching, ref closestBone, ref minDistance, ref closestTouchPoint);
+                }
+                // BoxCollider（立方体）の特別処理
+                else if (objectCollider is BoxCollider)
+                {
+                    ProcessBoxCollision(objectCollider, cubeIndex, allBones, ref currentlyTouching, ref closestBone, ref minDistance, ref closestTouchPoint);
+                }
+                // その他のCollider（MeshCollider等）の汎用処理
+                else
+                {
+                    ProcessGenericCollision(objectCollider, cubeIndex, allBones, ref currentlyTouching, ref closestBone, ref minDistance, ref closestTouchPoint);
                 }
             }
 
@@ -272,6 +281,13 @@ public class BoneJudgeNew : MonoBehaviour
                         if (renderer != null)
                         {
                             renderer.sharedMaterial = contactMaterial;
+                            
+                            // 体積ベース接触の場合は追加ログ
+                            CapsuleCollider capsuleCol = cubes[cubeIndex].GetComponent<CapsuleCollider>();
+                            if (capsuleCol != null && useVolumeBasedDetection)
+                            {
+                                Debug.Log($"VOLUME-BASED CONTACT: Material changed for Capsule {cubeIndex} - Hand entered cylinder volume!");
+                            }
                         }
                     }
                 }
@@ -424,5 +440,262 @@ public class BoneJudgeNew : MonoBehaviour
         }
         
         return "No Contact";
+    }
+
+    /// <summary>
+    /// CapsuleCollider（円柱形）専用の接触判定処理
+    /// アタッチしているオブジェクトと全く同一サイズの円柱体積内での接触判定
+    /// </summary>
+    private void ProcessCapsuleCollision(CapsuleCollider capsuleCollider, int cubeIndex, List<OVRBone> allBones, 
+        ref bool currentlyTouching, ref Transform closestBone, ref float minDistance, ref Vector3 closestTouchPoint)
+    {
+        // Capsuleの基本情報を取得
+        Transform capsuleTransform = capsuleCollider.transform;
+        Vector3 capsuleCenter = capsuleTransform.TransformPoint(capsuleCollider.center);
+        Vector3 scale = capsuleTransform.lossyScale;
+        
+        // 軸方向に応じた正確なサイズ計算
+        float capsuleRadius, capsuleHeight;
+        Vector3 axisDirection;
+        
+        if (capsuleCollider.direction == 0) // X軸方向
+        {
+            axisDirection = capsuleTransform.right;
+            capsuleRadius = capsuleCollider.radius * Mathf.Max(scale.y, scale.z);
+            capsuleHeight = capsuleCollider.height * scale.x;
+        }
+        else if (capsuleCollider.direction == 1) // Y軸方向
+        {
+            axisDirection = capsuleTransform.up;
+            capsuleRadius = capsuleCollider.radius * Mathf.Max(scale.x, scale.z);
+            capsuleHeight = capsuleCollider.height * scale.y;
+        }
+        else // Z軸方向
+        {
+            axisDirection = capsuleTransform.forward;
+            capsuleRadius = capsuleCollider.radius * Mathf.Max(scale.x, scale.y);
+            capsuleHeight = capsuleCollider.height * scale.z;
+        }
+
+        // デバッグ情報の出力
+        if (showDebugInfo && logContactEvents)
+        {
+            Debug.Log($"Capsule Analysis - Center: {capsuleCenter}, Original Radius: {capsuleRadius:F3} → Expanded: {capsuleRadius * radiusMultiplier + contactMargin:F3}, Original Height: {capsuleHeight:F3} → Expanded: {capsuleHeight * heightMultiplier:F3}, Direction: {capsuleCollider.direction}");
+        }
+
+        // 接触判定用の拡大された円柱サイズを計算
+        float expandedRadius = capsuleRadius * radiusMultiplier + contactMargin;
+        float expandedHeight = capsuleHeight * heightMultiplier;
+        float cylinderHalfHeight = Mathf.Max(0f, (expandedHeight * 0.5f) - expandedRadius);
+        
+        foreach (var bone in allBones)
+        {
+            if (bone.Transform == null) continue;
+
+            Vector3 bonePosition = bone.Transform.position;
+            
+            // 拡大された円柱体積内判定を行う
+            bool isInsideVolume = IsInsideCapsuleVolume(bonePosition, capsuleCenter, axisDirection, 
+                                                       expandedRadius, expandedHeight, cylinderHalfHeight);
+            
+            if (isInsideVolume)
+            {
+                // 体積内にある場合は接触とする
+                Vector3 toBone = bonePosition - capsuleCenter;
+                float projectionLength = Vector3.Dot(toBone, axisDirection);
+                
+                // 接触点を計算（元の円柱サイズでの表面点）
+                float originalCylinderHalfHeight = Mathf.Max(0f, (capsuleHeight * 0.5f) - capsuleRadius);
+                Vector3 surfacePoint = CalculateCapsuleSurfacePoint(bonePosition, capsuleCenter, axisDirection,
+                                                                   capsuleRadius, originalCylinderHalfHeight);
+                
+                // 距離は0とする（体積内なので）
+                float distanceToSurface = 0f;
+                
+                currentlyTouching = true;
+                if (distanceToSurface <= minDistance)
+                {
+                    minDistance = distanceToSurface;
+                    closestBone = bone.Transform;
+                    closestTouchPoint = surfacePoint;
+                }
+                
+                if (showDebugInfo && logContactEvents)
+                {
+                    Debug.Log($"Bone {bone.Transform.name} is INSIDE capsule volume at distance {Vector3.Distance(bonePosition, capsuleCenter):F3} from center");
+                }
+            }
+        }
+
+        if (logContactEvents && currentlyTouching)
+        {
+            Debug.Log($"Capsule VOLUME contact detected: Original Radius = {capsuleRadius:F3}, Expanded Radius = {expandedRadius:F3}, Original Height = {capsuleHeight:F3}, Expanded Height = {expandedHeight:F3}, Direction = {capsuleCollider.direction}");
+        }
+    }
+
+    /// <summary>
+    /// 指定された点がCapsule（円柱）の体積内にあるかを判定
+    /// </summary>
+    private bool IsInsideCapsuleVolume(Vector3 point, Vector3 capsuleCenter, Vector3 axisDirection, 
+                                      float capsuleRadius, float capsuleHeight, float cylinderHalfHeight)
+    {
+        // 円柱中心軸からの距離を計算
+        Vector3 toPoint = point - capsuleCenter;
+        float projectionLength = Vector3.Dot(toPoint, axisDirection);
+        
+        if (Mathf.Abs(projectionLength) <= cylinderHalfHeight)
+        {
+            // 円柱部分（側面）の体積内判定
+            Vector3 closestPointOnAxis = capsuleCenter + axisDirection * projectionLength;
+            float distanceToAxis = Vector3.Distance(point, closestPointOnAxis);
+            return distanceToAxis <= capsuleRadius;
+        }
+        else
+        {
+            // キャップ部分（底面の半球）の体積内判定
+            float capDirection = projectionLength > 0 ? 1f : -1f;
+            Vector3 capCenter = capsuleCenter + axisDirection * (capDirection * cylinderHalfHeight);
+            float distanceToCapCenter = Vector3.Distance(point, capCenter);
+            return distanceToCapCenter <= capsuleRadius;
+        }
+    }
+
+    /// <summary>
+    /// Capsule表面の最も近い点を計算
+    /// </summary>
+    private Vector3 CalculateCapsuleSurfacePoint(Vector3 point, Vector3 capsuleCenter, Vector3 axisDirection,
+                                               float capsuleRadius, float cylinderHalfHeight)
+    {
+        Vector3 toPoint = point - capsuleCenter;
+        float projectionLength = Vector3.Dot(toPoint, axisDirection);
+        
+        if (Mathf.Abs(projectionLength) <= cylinderHalfHeight)
+        {
+            // 円柱部分の表面点
+            Vector3 closestPointOnAxis = capsuleCenter + axisDirection * projectionLength;
+            Vector3 radialDirection = (point - closestPointOnAxis).normalized;
+            return closestPointOnAxis + radialDirection * capsuleRadius;
+        }
+        else
+        {
+            // キャップ部分の表面点
+            float capDirection = projectionLength > 0 ? 1f : -1f;
+            Vector3 capCenter = capsuleCenter + axisDirection * (capDirection * cylinderHalfHeight);
+            Vector3 directionToSurface = (point - capCenter).normalized;
+            return capCenter + directionToSurface * capsuleRadius;
+        }
+    }
+
+    /// <summary>
+    /// BoxCollider（立方体）専用の接触判定処理
+    /// </summary>
+    private void ProcessBoxCollision(Collider boxCollider, int cubeIndex, List<OVRBone> allBones,
+        ref bool currentlyTouching, ref Transform closestBone, ref float minDistance, ref Vector3 closestTouchPoint)
+    {
+        // 動的な閾値設定（ヒステリシス効果） - Box専用閾値を使用
+        float effectiveThreshold = boxContactThreshold;
+        if (enableContactStabilization && isTouching[cubeIndex])
+        {
+            effectiveThreshold += contactHysteresis;
+        }
+
+        foreach (var bone in allBones)
+        {
+            if (bone.Transform == null) continue;
+
+            Vector3 bonePosition = bone.Transform.position;
+            Vector3 closestPoint = boxCollider.ClosestPoint(bonePosition);
+            float distanceToSurface = Vector3.Distance(bonePosition, closestPoint);
+
+            // 接触判定
+            if (distanceToSurface <= effectiveThreshold)
+            {
+                currentlyTouching = true;
+                if (distanceToSurface < minDistance)
+                {
+                    minDistance = distanceToSurface;
+                    closestBone = bone.Transform;
+                    closestTouchPoint = closestPoint;
+                }
+            }
+        }
+
+        if (logContactEvents && currentlyTouching)
+        {
+            Debug.Log($"Box contact detected: Distance to surface = {minDistance:F3}, Threshold = {effectiveThreshold:F3}");
+        }
+    }
+
+    /// <summary>
+    /// 汎用Collider（MeshCollider等）の接触判定処理
+    /// </summary>
+    private void ProcessGenericCollision(Collider objectCollider, int cubeIndex, List<OVRBone> allBones,
+        ref bool currentlyTouching, ref Transform closestBone, ref float minDistance, ref Vector3 closestTouchPoint)
+    {
+        // 動的な閾値設定（ヒステリシス効果） - 汎用Collider専用閾値を使用
+        float effectiveThreshold = genericContactThreshold;
+        if (enableContactStabilization && isTouching[cubeIndex])
+        {
+            effectiveThreshold += contactHysteresis;
+        }
+
+        // 従来の拡張Bounds判定をフォールバックとして使用
+        float enlargementFactor = 1.005f;
+        
+        foreach (var bone in allBones)
+        {
+            if (bone.Transform == null) continue;
+
+            Vector3 bonePosition = bone.Transform.position;
+            Vector3 closestPoint = objectCollider.ClosestPoint(bonePosition);
+            float distance = Vector3.Distance(bonePosition, closestPoint);
+
+            // 精密な距離ベース判定とBounds判定の組み合わせ
+            bool withinDistanceThreshold = distance <= effectiveThreshold;
+            
+            // 拡張Boundsチェック（フォールバック用）
+            Bounds enlargedBounds = objectCollider.bounds;
+            enlargedBounds.Expand(enlargedBounds.size * (enlargementFactor - 1f));
+            bool withinBounds = enlargedBounds.Contains(bonePosition);
+
+            if (withinDistanceThreshold || withinBounds)
+            {
+                currentlyTouching = true;
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    closestBone = bone.Transform;
+                    closestTouchPoint = closestPoint;
+                }
+            }
+        }
+
+        if (logContactEvents && currentlyTouching)
+        {
+            string colliderType = objectCollider.GetType().Name;
+            Debug.Log($"{colliderType} contact detected: Distance to surface = {minDistance:F3}, Threshold = {effectiveThreshold:F3}");
+        }
+    }
+
+    /// <summary>
+    /// 指定されたCubeに右手が接触しているかを判定
+    /// </summary>
+    /// <param name="cubeIndex">Cubeのインデックス</param>
+    /// <returns>右手が接触している場合true</returns>
+    public bool IsRightHandTouching(int cubeIndex)
+    {
+        string handType = GetContactingHandType(cubeIndex);
+        return handType == "Right Hand";
+    }
+
+    /// <summary>
+    /// 指定されたCubeに左手が接触しているかを判定
+    /// </summary>
+    /// <param name="cubeIndex">Cubeのインデックス</param>
+    /// <returns>左手が接触している場合true</returns>
+    public bool IsLeftHandTouching(int cubeIndex)
+    {
+        string handType = GetContactingHandType(cubeIndex);
+        return handType == "Left Hand";
     }
 }

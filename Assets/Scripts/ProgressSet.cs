@@ -19,7 +19,8 @@ public class ProgressSet : MonoBehaviour
 
     // 内部変数
     private float[] fixedZs; // 各オブジェクトに対応する固定z座標
-    private float fixedForearmZ; // 始点用のHand_ForearmStubの z 座標を固定するための変数
+    private float fixedForearmX; // 始点用のHand_ForearmStubの x 座標を固定するための変数（Y軸のみ変化用）
+    private float fixedForearmZ; // 始点用のHand_ForearmStubの z 座標を固定するための変数（Y軸のみ変化用）
     private bool forearmZFrozen = false;
 
     void Start()
@@ -91,10 +92,11 @@ public class ProgressSet : MonoBehaviour
         
         if (anyContact)
         {
-            // 接触中なら、初回の接触時に固定した z 座標を使う
+            // 接触中なら、初回の接触時に固定した x, z 座標を使う（Y軸のみ変化）
             if (!forearmZFrozen)
             {
-                fixedForearmZ = baseStartPos.z;
+                fixedForearmX = baseStartPos.x; // X軸を固定
+                fixedForearmZ = baseStartPos.z; // Z軸を固定
                 forearmZFrozen = true;
                 
                 // 接触開始時に各オブジェクトのZ座標も固定
@@ -108,10 +110,11 @@ public class ProgressSet : MonoBehaviour
                 
                 if (logProgressEvents)
                 {
-                    Debug.Log($"ProgressSet: Contact started. Fixed forearm Z at {fixedForearmZ:F4}");
+                    Debug.Log($"ProgressSet: Contact started. Fixed forearm X at {fixedForearmX:F4}, Z at {fixedForearmZ:F4}");
                 }
             }
-            progressStart = new Vector3(baseStartPos.x, baseStartPos.y, fixedForearmZ);
+            // Y軸のみ動的に更新、X軸とZ軸は固定
+            progressStart = new Vector3(fixedForearmX, baseStartPos.y, fixedForearmZ);
         }
         else
         {
@@ -131,10 +134,10 @@ public class ProgressSet : MonoBehaviour
         {
             if (bonejudgeNew.isTouching[i] && bonejudgeNew.fixedClosestBones[i] != null)
             {
-                // 接触中の場合は、接触時に記録した z 座標を使用
+                // EndPointは手の実際の位置を使用（手の方向ベクトルを保持するため）
                 progressEnd = new Vector3(bonejudgeNew.fixedClosestBones[i].position.x, 
                                         bonejudgeNew.fixedClosestBones[i].position.y, 
-                                        fixedZs[i]);
+                                        bonejudgeNew.fixedClosestBones[i].position.z);
                 foundContact = true;
                 break;
             }

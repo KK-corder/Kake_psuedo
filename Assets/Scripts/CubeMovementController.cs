@@ -6,6 +6,7 @@ public class CubeMovementController : MonoBehaviour
 {
     [Header("References")]
     public BoneJudgeNew bonejudgeNew;
+    public GrabJudge grabJudge;
 
     [Header("Settings")]
     public int cubeIndex = 0;
@@ -16,6 +17,11 @@ public class CubeMovementController : MonoBehaviour
     public bool usePositionConstraints = false; // 位置制限を使用するかどうか
     public Vector3 minPosition = new Vector3(-10f, -10f, -10f);
     public Vector3 maxPosition = new Vector3(10f, 10f, 10f);
+    
+    [Header("Grab & Contact Control")]
+    public bool requireGrabAndContact = true; // 握り+接触の両方を必要とするか
+    public bool requireGrabOnly = false; // 握りのみで動作させるか
+    public bool requireContactOnly = false; // 接触のみで動作させるか
     
     [Header("Axis Movement Control")]
     public bool enableXAxisMovement = false; // X軸移動を無効
@@ -101,7 +107,19 @@ public class CubeMovementController : MonoBehaviour
         if (cubeIndex < 0 || cubeIndex >= bonejudgeNew.isTouching.Length)
             return;
 
-        if (bonejudgeNew.isTouching[cubeIndex])
+        // 接触状態とつかみ状態をチェック
+        bool isContacting = bonejudgeNew.isTouching[cubeIndex];
+        bool isGrabbing = CheckGrabCondition();
+        
+        // 動作条件をチェック
+        bool shouldMove = CheckMovementCondition(isContacting, isGrabbing);
+        
+        if (showDebugLogs)
+        {
+            Debug.Log($"Cube {cubeIndex}: Contact={isContacting}, Grab={isGrabbing}, ShouldMove={shouldMove}");
+        }
+
+        if (shouldMove)
         {
             // 接触開始時の処理
             if (!wasContactingLastFrame && enableGravityControl)
@@ -158,20 +176,25 @@ public class CubeMovementController : MonoBehaviour
             // 位置を更新
             transform.position = newPosition;
             
-            // デバッグログ
-            if (showDebugLogs && moveAmount.magnitude > 0.0001f)
+            // デバッグログ（Hand Movementを常に出力）
+            if (moveAmount.magnitude > 0.0001f)
             {
-                Debug.Log($"Cube {cubeIndex}: Hand delta = {deltaPosition}, Move amount = {moveAmount}, New position = {newPosition}");
-                Debug.Log($"Cube {cubeIndex}: Axis control - X: {enableXAxisMovement}, Y: {enableYAxisMovement}, Z: {enableZAxisMovement}");
-                if (usePositionConstraints)
+                Debug.Log($"CubeMovementController - Hand Movement Delta: X: {deltaPosition.x:F6}, Y: {deltaPosition.y:F6}, Z: {deltaPosition.z:F6}");
+                
+                if (showDebugLogs)
                 {
-                    Debug.Log($"Cube {cubeIndex}: Position constraints applied. Min: {minPosition}, Max: {maxPosition}");
+                    Debug.Log($"Cube {cubeIndex}: Hand delta = {deltaPosition}, Move amount = {moveAmount}, New position = {newPosition}");
+                    Debug.Log($"Cube {cubeIndex}: Axis control - X: {enableXAxisMovement}, Y: {enableYAxisMovement}, Z: {enableZAxisMovement}");
+                    if (usePositionConstraints)
+                    {
+                        Debug.Log($"Cube {cubeIndex}: Position constraints applied. Min: {minPosition}, Max: {maxPosition}");
+                    }
                 }
             }
         }
         else
         {
-            // 接触終了時の処理
+            // 動作条件が満たされなくなった時の処理
             if (wasContactingLastFrame && enableGravityControl)
             {
                 // 重力加速度を通常値に戻す
@@ -179,12 +202,15 @@ public class CubeMovementController : MonoBehaviour
                 
                 if (showDebugLogs)
                 {
-                    Debug.Log($"Cube {cubeIndex}: Contact ended - Gravity acceleration restored to {normalGravity} m/s²");
+                    Debug.Log($"Cube {cubeIndex}: Movement condition not met - Gravity acceleration restored to {normalGravity} m/s²");
                 }
             }
             
-            wasContactingLastFrame = false;
-            firstFrame = true;
+            wasContactingLastFrame = shouldMove;
+            if (!shouldMove)
+            {
+                firstFrame = true;
+            }
         }
     }
 
@@ -408,5 +434,65 @@ public class CubeMovementController : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// つかみ条件をチェック
+    /// </summary>
+    /// <returns>つかみ条件が満たされている場合true</returns>
+    private bool CheckGrabCondition()
+    {
+        if (grabJudge == null)
+            return false;
+
+        // どちらかの手がつかんでいるかをチェック
+        return grabJudge.IsAnyHandGrabbing();
+    }
+
+    /// <summary>
+    /// 動作条件をチェック（接触+つかみの組み合わせ）
+    /// </summary>
+    /// <param name="isContacting">接触しているか</param>
+    /// <param name="isGrabbing">つかんでいるか</param>
+    /// <returns>動作させるべき場合true</returns>
+    private bool CheckMovementCondition(bool isContacting, bool isGrabbing)
+    {
+        if (requireGrabAndContact)
+        {
+            // つかみ+接触の両方が必要
+            return isContacting && isGrabbing;
+        }
+        else if (requireGrabOnly)
+        {
+            // つかみのみで動作
+            return isGrabbing;
+        }
+        else if (requireContactOnly)
+        {
+            // 接触のみで動作
+            return isContacting;
+        }
+        else
+        {
+            // デフォルト: つかみ+接触の両方が必要
+            return isContacting && isGrabbing;
+        }
+    }
+
+    /// <summary>
+    /// 現在の動作状態を取得
+    /// </summary>
+    /// <returns>動作状態の情報</returns>
+    public string GetMovementStatus()
+    {
+        if (bonejudgeNew == null || grabJudge == null)
+            return "References not set";
+
+        bool isContacting = bonejudgeNew.isTouching != null && 
+                           cubeIndex >= 0 && cubeIndex < bonejudgeNew.isTouching.Length && 
+                           bonejudgeNew.isTouching[cubeIndex];
+        bool isGrabbing = CheckGrabCondition();
+        bool shouldMove = CheckMovementCondition(isContacting, isGrabbing);
+
+        return $"Contact: {isContacting}, Grab: {isGrabbing}, Moving: {shouldMove}";
+    }
 
 }

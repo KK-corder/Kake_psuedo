@@ -5,6 +5,7 @@ public class ContactProgressController : MonoBehaviour
     [Header("References")]
     // BoneJudgeNew.cs の参照（接触判定用）
     public BoneJudgeNew bonejudgeNew;
+    public GrabJudge grabJudge; // 握り判定用
     public ProgressSet progressSet;
     public TaskManage taskmanage;
     public OVRSkeleton handModel;
@@ -16,6 +17,26 @@ public class ContactProgressController : MonoBehaviour
     [Header("Progress Settings")]
     // progress の基礎増加率（Inspectorから調整可能）
     [SerializeField] public float[] progressIncreaseRate = new float[3]; // publicに変更
+    
+    [Header("Displacement Sensitivity")]
+    // 手の変位量に対する係数（感度調整）
+    [Range(0.1f, 50.0f)]
+    public float displacementMultiplier = 20.0f; // 変位量に乗算する係数（Y軸用に高感度）
+    
+    [Header("Advanced Sensitivity")]
+    // Y軸専用の高感度設定（通常の感度では不十分な場合）
+    [Range(1.0f, 100.0f)]
+    public float yAxisBoostMultiplier = 1.0f; // Y軸のみに追加で適用される係数
+    
+    // 使用する軸の選択
+    public enum DisplacementAxis { Y_Axis, Z_Axis, X_Axis }
+    [Header("Axis Selection")]
+    public DisplacementAxis useAxis = DisplacementAxis.Y_Axis;
+    
+    [Header("Activation Conditions")]
+    // Progress発動条件の設定
+    public bool requireGrabAndContact = true; // 握り+接触の両方を必要とする
+    public bool requireContactOnly = false; // 接触のみで発動（従来動作）
 
     [Header("Contact Stability")]
     [SerializeField] private bool enableContactFiltering = true; // 接触フィルタリングを有効にする
@@ -25,7 +46,7 @@ public class ContactProgressController : MonoBehaviour
     private float[] contactDuration;
 
     [Header("Debug Settings")]
-    [SerializeField] private bool enableDebugLogs = false;
+    [SerializeField] private bool enableDebugLogs = true;
 
     // 内部で接触時間および現在の progress を保持
     private float[] contactTime;
@@ -35,6 +56,8 @@ public class ContactProgressController : MonoBehaviour
     private Vector3[] contactStartPosition;
     // 接触状態の追跡（各キューブごと）
     private bool[] wasContactingLastFrame;
+    // 前フレームの手の座標（速度計算用）
+    private Vector3[] previousHandPosition;
 
     // 最大配列サイズの制限（StackOverflow防止）
     private const int MAX_ARRAY_SIZE = 10;
@@ -48,6 +71,11 @@ public class ContactProgressController : MonoBehaviour
         if (bonejudgeNew == null)
         {
             Debug.LogError("ContactProgressController: bonejudgeNew is not assigned in the Inspector.");
+        }
+        
+        if (requireGrabAndContact && grabJudge == null)
+        {
+            Debug.LogError("ContactProgressController: grabJudge is not assigned but requireGrabAndContact is enabled.");
             return;
         }
 
@@ -72,6 +100,7 @@ public class ContactProgressController : MonoBehaviour
             contactStartPosition = new Vector3[cubeCount];
             wasContactingLastFrame = new bool[cubeCount];
             contactDuration = new float[cubeCount]; // 接触継続時間の初期化
+            previousHandPosition = new Vector3[cubeCount]; // 前フレーム座標の初期化
 
             // progressIncreaseRateのサイズ調整
             if (progressIncreaseRate == null || progressIncreaseRate.Length != cubeCount)
@@ -91,11 +120,13 @@ public class ContactProgressController : MonoBehaviour
                 contactStartPosition[i] = Vector3.zero;
                 wasContactingLastFrame[i] = false;
                 contactDuration[i] = 0f; // 接触継続時間の初期化
+                previousHandPosition[i] = Vector3.zero; // 前フレーム座標の初期化
             }
 
             if (enableDebugLogs)
             {
                 Debug.Log($"ContactProgressController: Initialized with {cubeCount} cubes");
+                Debug.Log($"Initial progressIncreaseRate: [{string.Join(", ", progressIncreaseRate)}]");
             }
         }
         catch (System.Exception e)
@@ -123,18 +154,62 @@ public class ContactProgressController : MonoBehaviour
         cubeCount = Mathf.Min(cubeCount, MAX_ARRAY_SIZE);
 
         bool contactActive = false;
+        bool grabActive = false;
 
-        // bonejudgeNew の isTouching 配列のうち、いずれかが true なら接触中とする
+        // 接触とそれに対応する握り状態をチェック
+        // 右手が触れているときは右手の握り判定、左手が触れているときは左手の握り判定のみを使用
         for (int i = 0; i < Mathf.Min(bonejudgeNew.isTouching.Length, cubeCount); i++)
         {
             if (bonejudgeNew.isTouching[i])
             {
                 contactActive = true;
-                break;
+                
+                // 接触している手に応じた握り判定を行う
+                if (grabJudge != null)
+                {
+                    bool isRightHandTouching = bonejudgeNew.IsRightHandTouching(i);
+                    bool isLeftHandTouching = bonejudgeNew.IsLeftHandTouching(i);
+                    
+                    if (isRightHandTouching)
+                    {
+                        // 右手が接触している場合は右手の握り判定のみ
+                        grabActive = grabJudge.IsHandGrabbing(true); // true = 右手
+                        
+                        if (enableDebugLogs)
+                        {
+                            Debug.Log($"Right hand touching cube[{i}] - Right hand grabbing: {grabActive}");
+                        }
+                    }
+                    else if (isLeftHandTouching)
+                    {
+                        // 左手が接触している場合は左手の握り判定のみ
+                        grabActive = grabJudge.IsHandGrabbing(false); // false = 左手
+                        
+                        if (enableDebugLogs)
+                        {
+                            Debug.Log($"Left hand touching cube[{i}] - Left hand grabbing: {grabActive}");
+                        }
+                    }
+                    else
+                    {
+                        // どちらの手か不明な場合はfalse
+                        grabActive = false;
+                        
+                        if (enableDebugLogs)
+                        {
+                            Debug.Log($"Unknown hand touching cube[{i}] - grabbing: {grabActive}");
+                        }
+                    }
+                }
+                
+                break; // 最初に接触しているCubeで判定を確定
             }
         }
 
-        if (contactActive)
+        // 発動条件をチェック
+        bool shouldActivateProgress = CheckActivationConditions(contactActive, grabActive);
+
+        if (shouldActivateProgress)
         {
             // 接触しているCubeに基づいてcurrentProgressを更新
             for (int i = 0; i < cubeCount; i++)
@@ -166,11 +241,12 @@ public class ContactProgressController : MonoBehaviour
                     {
                         Vector3 handPos = GetHandPosition();
                         contactStartPosition[i] = handPos;
+                        previousHandPosition[i] = handPos; // 前フレーム座標も初期化
                         wasContactingLastFrame[i] = true;
                         
                         if (enableDebugLogs)
                         {
-                            Debug.Log($"Stable contact started for cube[{i}] at position: {contactStartPosition[i]} after {contactDuration[i]:F3}s");
+                            Debug.Log($"Stable contact started for cube[{i}] at position: {contactStartPosition[i]} after {contactDuration[i]:F3}s (Y基準位置: {contactStartPosition[i].y:F4})");
                         }
                     }
 
@@ -179,44 +255,97 @@ public class ContactProgressController : MonoBehaviour
                     // 現在の手の座標を取得
                     Vector3 currentHandPosition = GetHandPosition();
                     
-                    // 接触開始時からのY軸方向の変位のみを計算
-                    float yDisplacement = currentHandPosition.y - contactStartPosition[i].y;
-
-                    // protect against progressIncreaseRate missing or too short
+                    // デバッグ: 全軸の変化量を確認
+                    if (enableDebugLogs && previousHandPosition[i] != Vector3.zero)
+                    {
+                        float xChange = currentHandPosition.x - previousHandPosition[i].x;
+                        float yChange = currentHandPosition.y - previousHandPosition[i].y;
+                        float zChange = currentHandPosition.z - previousHandPosition[i].z;
+                        Debug.Log($"Hand Movement - X: {xChange:F6}, Y: {yChange:F6}, Z: {zChange:F6}");
+                        Debug.Log($"Current Position: {currentHandPosition}, Previous: {previousHandPosition[i]}");
+                    }
+                    
+                    // 選択された軸の変化量を計算（毎フレームの増分）
+                    float frameAxisChange = 0f;
+                    switch (useAxis)
+                    {
+                        case DisplacementAxis.Y_Axis:
+                            frameAxisChange = currentHandPosition.y - previousHandPosition[i].y;
+                            break;
+                        case DisplacementAxis.Z_Axis:
+                            frameAxisChange = currentHandPosition.z - previousHandPosition[i].z;
+                            break;
+                        case DisplacementAxis.X_Axis:
+                            frameAxisChange = currentHandPosition.x - previousHandPosition[i].x;
+                            break;
+                    }
+                    
+                    // 変化量に係数を適用（インスペクターで調整可能）
+                    float adjustedFrameChange = frameAxisChange * displacementMultiplier;
+                    
+                    // Y軸の場合は追加ブーストを適用
+                    if (useAxis == DisplacementAxis.Y_Axis)
+                    {
+                        adjustedFrameChange *= yAxisBoostMultiplier;
+                    }
+                    
+                    // progressIncreaseRate を取得（変化率として使用）
                     float pRate = 0.5f;
                     if (progressIncreaseRate != null && i < progressIncreaseRate.Length)
                         pRate = progressIncreaseRate[i];
 
                     float oldProgress = currentProgress[i];
                     
-                    // Y軸方向の変位に基づいてprogressを直接計算（Time.deltaTimeは不要）
-                    // 変位量に基づいた進行度計算
-                    float progressChange = pRate * yDisplacement;
-                    
-                    if (yDisplacement > 0)
+                    // Y軸使用時：接触開始位置より低い場合は変化させない
+                    bool allowProgressChange = true;
+                    if (useAxis == DisplacementAxis.Y_Axis)
                     {
-                        // Y軸正方向への移動：currentProgress を減少
-                        currentProgress[i] = 1.0f - progressChange;
+                        float contactStartY = contactStartPosition[i].y;
+                        float currentY = currentHandPosition.y;
+                        
+                        if (currentY < contactStartY)
+                        {
+                            allowProgressChange = false;
+                            if (enableDebugLogs)
+                            {
+                                Debug.Log($"Cube[{i}]: Y座標が接触位置より低い - 変化停止 (接触Y: {contactStartY:F4}, 現在Y: {currentY:F4})");
+                            }
+                        }
                     }
-                    else if (yDisplacement < 0)
+                    
+                    if (allowProgressChange)
                     {
-                        // Y軸負方向への移動：currentProgress を増加（上限は1.0）
-                        currentProgress[i] = 1.0f - progressChange; // 負の変位でも同じ計算
+                        // 毎フレームの変化量をprogressRateで調整
+                        float progressChangeThisFrame = adjustedFrameChange * pRate;
+                        
+                        // currentProgressを直接更新（累積的変化）
+                        // Y座標増加 → progress減少、Y座標減少 → progress増加
+                        float newProgress = currentProgress[i] - progressChangeThisFrame;
+                        
+                        // currentProgressを0.0-1.0の範囲にクランプ
+                        currentProgress[i] = Mathf.Clamp01(newProgress);
                     }
                     else
                     {
-                        // 変位がない場合は初期値
-                        currentProgress[i] = 1.0f;
+                        // 変化を停止：currentProgressを現在値に維持
+                        // （何もしない）
                     }
                     
+                    // 次フレーム用に現在座標を保存
+                    previousHandPosition[i] = currentHandPosition;
+                    
                     // デバッグ：変化量を確認
-                    if (enableDebugLogs && Mathf.Abs(oldProgress - currentProgress[i]) > 0.0001f)
+                    if (enableDebugLogs && Mathf.Abs(oldProgress - currentProgress[i]) > 0.0001f && allowProgressChange)
                     {
-                        Debug.Log($"Progress changed for cube[{i}]: {oldProgress:F6} -> {currentProgress[i]:F6}, Y displacement: {yDisplacement:F6}, Progress change: {progressChange:F6}");
+                        Debug.Log($"Progress changed for cube[{i}]: {oldProgress:F6} -> {currentProgress[i]:F6}, Frame {useAxis} change: {frameAxisChange:F6}, Adjusted change: {adjustedFrameChange:F6}");
                     }
 
                     if (enableDebugLogs)
-                        Debug.Log($"ContactProgressController: cube[{i}] touching, pRate={pRate:F3}, currentProgress={currentProgress[i]:F4}, Y displacement={yDisplacement:F4}");
+                    {
+                        string statusInfo = GetActivationStatus();
+                        Debug.Log($"ContactProgressController: cube[{i}] touching, pRate={pRate:F3}, currentProgress={currentProgress[i]:F4}, Frame {useAxis} change={frameAxisChange:F6}, displacementMultiplier={displacementMultiplier:F2}");
+                        Debug.Log($"Activation Status: {statusInfo}");
+                    }
                 }
                 else
                 {
@@ -232,6 +361,9 @@ public class ContactProgressController : MonoBehaviour
                     
                     // 接触継続時間をリセット
                     contactDuration[i] = 0f;
+                    // 前フレーム座標もリセット
+                    if (i < previousHandPosition.Length)
+                        previousHandPosition[i] = Vector3.zero;
                 }
             }
         }
@@ -248,6 +380,8 @@ public class ContactProgressController : MonoBehaviour
                 currentProgress[i] = 1.0f; // リセット時も1.0に変更
                 wasContactingLastFrame[i] = false;
                 contactDuration[i] = 0f; // 接触継続時間もリセット
+                if (i < previousHandPosition.Length)
+                    previousHandPosition[i] = Vector3.zero; // 前フレーム座標もリセット
 
                 // デバッグログでリセットを確認
                 if (enableDebugLogs)
@@ -415,6 +549,7 @@ public class ContactProgressController : MonoBehaviour
         if (enableDebugLogs)
         {
             Debug.Log($"ContactProgressController: Set {copyLength} progressIncreaseRates");
+            Debug.Log($"Updated progressIncreaseRate: [{string.Join(", ", progressIncreaseRate)}]");
         }
     }
 
@@ -422,5 +557,90 @@ public class ContactProgressController : MonoBehaviour
     {
         // enable some logs only in development/editor to avoid spam
         return true;
+    }
+
+    /// <summary>
+    /// Progress発動条件をチェック
+    /// </summary>
+    /// <param name="isContacting">接触している</param>
+    /// <param name="isGrabbing">握っている</param>
+    /// <returns>Progress処理を実行すべき場合true</returns>
+    private bool CheckActivationConditions(bool isContacting, bool isGrabbing)
+    {
+        if (requireGrabAndContact)
+        {
+            // 握り+接触の両方が必要
+            bool shouldActivate = isContacting && isGrabbing;
+            
+            if (enableDebugLogs)
+            {
+                Debug.Log($"ContactProgressController: RequireGrabAndContact mode - Contact: {isContacting}, Grab: {isGrabbing}, Activate: {shouldActivate}");
+            }
+            
+            return shouldActivate;
+        }
+        else if (requireContactOnly)
+        {
+            // 接触のみで発動（従来動作）
+            if (enableDebugLogs)
+            {
+                Debug.Log($"ContactProgressController: ContactOnly mode - Contact: {isContacting}, Activate: {isContacting}");
+            }
+            
+            return isContacting;
+        }
+        else
+        {
+            // デフォルト: 握り+接触の両方が必要
+            bool shouldActivate = isContacting && isGrabbing;
+            
+            if (enableDebugLogs)
+            {
+                Debug.Log($"ContactProgressController: Default mode (GrabAndContact) - Contact: {isContacting}, Grab: {isGrabbing}, Activate: {shouldActivate}");
+            }
+            
+            return shouldActivate;
+        }
+    }
+
+    /// <summary>
+    /// 現在のProgress発動状態を取得
+    /// </summary>
+    /// <returns>発動状態の情報文字列</returns>
+    public string GetActivationStatus()
+    {
+        if (bonejudgeNew == null)
+            return "BoneJudgeNew not assigned";
+        
+        if (requireGrabAndContact && grabJudge == null)
+            return "GrabJudge not assigned but required";
+
+        bool contactActive = false;
+        bool grabActive = false;
+
+        // 接触状態をチェック
+        if (bonejudgeNew.isTouching != null)
+        {
+            for (int i = 0; i < bonejudgeNew.isTouching.Length; i++)
+            {
+                if (bonejudgeNew.isTouching[i])
+                {
+                    contactActive = true;
+                    break;
+                }
+            }
+        }
+
+        // 握り状態をチェック
+        if (grabJudge != null)
+        {
+            grabActive = grabJudge.IsAnyHandGrabbing();
+        }
+
+        bool shouldActivate = CheckActivationConditions(contactActive, grabActive);
+        
+        string mode = requireGrabAndContact ? "GrabAndContact" : (requireContactOnly ? "ContactOnly" : "Default(GrabAndContact)");
+        
+        return $"Mode: {mode}, Contact: {contactActive}, Grab: {grabActive}, Progress Active: {shouldActivate}";
     }
 }
