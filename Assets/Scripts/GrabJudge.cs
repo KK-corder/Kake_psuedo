@@ -24,6 +24,11 @@ public class GrabJudge : MonoBehaviour
     [Header("Debug Settings")]
     public bool logGrabEvents = true;
     public bool showDetailedDebug = false;
+    
+    [Header("Current Grab Status - 現在の握り状態")]
+    [SerializeField] private string rightHandStatus = "Not Grabbing";
+    [SerializeField] private string leftHandStatus = "Not Grabbing";
+    [SerializeField] private string grabSummary = "None";
 
     // 握り状態の管理
     [HideInInspector] public bool isRightHandGrabbing = false;
@@ -60,6 +65,9 @@ public class GrabJudge : MonoBehaviour
             UpdateHandGrabState(leftHandSkeleton, ref isLeftHandGrabbing, 
                               ref leftGrabFrameCount, ref leftReleaseFrameCount, "Left");
         }
+        
+        // インスペクター表示用の状態更新
+        UpdateDebugStatus();
     }
 
     /// <summary>
@@ -287,5 +295,104 @@ public class GrabJudge : MonoBehaviour
     {
         OVRSkeleton targetSkeleton = isRightHand ? rightHandSkeleton : leftHandSkeleton;
         return CalculateGrabStrength(targetSkeleton);
+    }
+
+    /// <summary>
+    /// 握っている手を特定（右手、左手、両手、なし）
+    /// </summary>
+    /// <returns>握り状態の詳細情報</returns>
+    public enum GrabbingHand { None, RightOnly, LeftOnly, BothHands }
+    public GrabbingHand GetGrabbingHand()
+    {
+        if (isRightHandGrabbing && isLeftHandGrabbing)
+            return GrabbingHand.BothHands;
+        else if (isRightHandGrabbing)
+            return GrabbingHand.RightOnly;
+        else if (isLeftHandGrabbing)
+            return GrabbingHand.LeftOnly;
+        else
+            return GrabbingHand.None;
+    }
+
+    /// <summary>
+    /// 握っている手の名前を文字列で取得
+    /// </summary>
+    /// <returns>"Right", "Left", "Both", "None"</returns>
+    public string GetGrabbingHandName()
+    {
+        switch (GetGrabbingHand())
+        {
+            case GrabbingHand.RightOnly: return "Right";
+            case GrabbingHand.LeftOnly: return "Left";
+            case GrabbingHand.BothHands: return "Both";
+            default: return "None";
+        }
+    }
+
+    /// <summary>
+    /// 右手のみが握っているかを判定
+    /// </summary>
+    /// <returns>右手のみが握っている場合true</returns>
+    public bool IsOnlyRightHandGrabbing()
+    {
+        return isRightHandGrabbing && !isLeftHandGrabbing;
+    }
+
+    /// <summary>
+    /// 左手のみが握っているかを判定
+    /// </summary>
+    /// <returns>左手のみが握っている場合true</returns>
+    public bool IsOnlyLeftHandGrabbing()
+    {
+        return isLeftHandGrabbing && !isRightHandGrabbing;
+    }
+
+    /// <summary>
+    /// 右手が握っているかを判定（左手の状態は不問）
+    /// </summary>
+    /// <returns>右手が握っている場合true</returns>
+    public bool IsRightHandGrabbing()
+    {
+        return isRightHandGrabbing;
+    }
+
+    /// <summary>
+    /// 左手が握っているかを判定（右手の状態は不問）
+    /// </summary>
+    /// <returns>左手が握っている場合true</returns>
+    public bool IsLeftHandGrabbing()
+    {
+        return isLeftHandGrabbing;
+    }
+
+    /// <summary>
+    /// インスペクター表示用の状態情報を更新
+    /// </summary>
+    private void UpdateDebugStatus()
+    {
+        // 右手の状態
+        if (isRightHandGrabbing)
+        {
+            float strength = GetGrabStrength(true);
+            rightHandStatus = $"Grabbing (強度: {strength:F2})";
+        }
+        else
+        {
+            rightHandStatus = "Not Grabbing";
+        }
+        
+        // 左手の状態
+        if (isLeftHandGrabbing)
+        {
+            float strength = GetGrabStrength(false);
+            leftHandStatus = $"Grabbing (強度: {strength:F2})";
+        }
+        else
+        {
+            leftHandStatus = "Not Grabbing";
+        }
+        
+        // 全体の握り状態
+        grabSummary = GetGrabbingHandName();
     }
 }

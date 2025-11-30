@@ -208,6 +208,14 @@ public class ContactProgressController : MonoBehaviour
 
         // 発動条件をチェック
         bool shouldActivateProgress = CheckActivationConditions(contactActive, grabActive);
+        
+        // デバッグ: 発動条件の詳細をログ出力
+        if (enableDebugLogs)
+        {
+            Debug.Log($"=== Frame Update Debug ===");
+            Debug.Log($"Contact Active: {contactActive}, Grab Active: {grabActive}, Should Activate: {shouldActivateProgress}");
+            Debug.Log($"Activation Mode - RequireGrabAndContact: {requireGrabAndContact}, RequireContactOnly: {requireContactOnly}");
+        }
 
         if (shouldActivateProgress)
         {
@@ -246,7 +254,7 @@ public class ContactProgressController : MonoBehaviour
                         
                         if (enableDebugLogs)
                         {
-                            Debug.Log($"Stable contact started for cube[{i}] at position: {contactStartPosition[i]} after {contactDuration[i]:F3}s (Y基準位置: {contactStartPosition[i].y:F4})");
+                            Debug.Log($"Stable contact started for cube[{i}] at position: {contactStartPosition[i]} after {contactDuration[i]:F3}s");
                         }
                     }
 
@@ -265,28 +273,42 @@ public class ContactProgressController : MonoBehaviour
                         Debug.Log($"Current Position: {currentHandPosition}, Previous: {previousHandPosition[i]}");
                     }
                     
-                    // 選択された軸の変化量を計算（毎フレームの増分）
-                    float frameAxisChange = 0f;
+                    // 接触開始位置からの絶対変位を計算（絶対位置ベース）
+                    float absoluteDisplacement = 0f;
                     switch (useAxis)
                     {
                         case DisplacementAxis.Y_Axis:
-                            frameAxisChange = currentHandPosition.y - previousHandPosition[i].y;
+                            absoluteDisplacement = currentHandPosition.y - contactStartPosition[i].y;
                             break;
                         case DisplacementAxis.Z_Axis:
-                            frameAxisChange = currentHandPosition.z - previousHandPosition[i].z;
+                            absoluteDisplacement = currentHandPosition.z - contactStartPosition[i].z;
                             break;
                         case DisplacementAxis.X_Axis:
-                            frameAxisChange = currentHandPosition.x - previousHandPosition[i].x;
+                            absoluteDisplacement = currentHandPosition.x - contactStartPosition[i].x;
                             break;
                     }
                     
-                    // 変化量に係数を適用（インスペクターで調整可能）
-                    float adjustedFrameChange = frameAxisChange * displacementMultiplier;
+                    // デバッグ: 絶対変位の詳細ログ
+                    if (enableDebugLogs)
+                    {
+                        Debug.Log($"=== Absolute Displacement Debug for Cube[{i}] ===");
+                        Debug.Log($"Contact Start Position: {contactStartPosition[i]}");
+                        Debug.Log($"Current Hand Position: {currentHandPosition}");
+                        Debug.Log($"Selected Axis: {useAxis}, Absolute Displacement: {absoluteDisplacement:F6}");
+                        Debug.Log($"Displacement Multiplier: {displacementMultiplier}, Y Boost Multiplier: {yAxisBoostMultiplier}");
+                    }
+                    
+                    // 変位量に係数を適用
+                    float adjustedDisplacement = absoluteDisplacement * displacementMultiplier;
                     
                     // Y軸の場合は追加ブーストを適用
                     if (useAxis == DisplacementAxis.Y_Axis)
                     {
-                        adjustedFrameChange *= yAxisBoostMultiplier;
+                        adjustedDisplacement *= yAxisBoostMultiplier;
+                        if (enableDebugLogs)
+                        {
+                            Debug.Log($"Y-Axis boost applied: {adjustedDisplacement:F6}");
+                        }
                     }
                     
                     // progressIncreaseRate を取得（変化率として使用）
@@ -296,54 +318,41 @@ public class ContactProgressController : MonoBehaviour
 
                     float oldProgress = currentProgress[i];
                     
-                    // Y軸使用時：接触開始位置より低い場合は変化させない
-                    bool allowProgressChange = true;
-                    if (useAxis == DisplacementAxis.Y_Axis)
-                    {
-                        float contactStartY = contactStartPosition[i].y;
-                        float currentY = currentHandPosition.y;
-                        
-                        if (currentY < contactStartY)
-                        {
-                            allowProgressChange = false;
-                            if (enableDebugLogs)
-                            {
-                                Debug.Log($"Cube[{i}]: Y座標が接触位置より低い - 変化停止 (接触Y: {contactStartY:F4}, 現在Y: {currentY:F4})");
-                            }
-                        }
-                    }
+                    // 絶対変位に基づいてProgress値を直接設定
+                    // Y座標増加（正の変位） → progress減少、Y座標減少（負の変位） → progress増加
+                    currentProgress[i] = 1.0f - (adjustedDisplacement * pRate);
                     
-                    if (allowProgressChange)
-                    {
-                        // 毎フレームの変化量をprogressRateで調整
-                        float progressChangeThisFrame = adjustedFrameChange * pRate;
-                        
-                        // currentProgressを直接更新（累積的変化）
-                        // Y座標増加 → progress減少、Y座標減少 → progress増加
-                        float newProgress = currentProgress[i] - progressChangeThisFrame;
-                        
-                        // currentProgressを0.0-1.0の範囲にクランプ
-                        currentProgress[i] = Mathf.Clamp01(newProgress);
-                    }
-                    else
-                    {
-                        // 変化を停止：currentProgressを現在値に維持
-                        // （何もしない）
-                    }
+                    // currentProgressを0.0-1.0の範囲にクランプ
+                    currentProgress[i] = Mathf.Clamp01(currentProgress[i]);
                     
-                    // 次フレーム用に現在座標を保存
-                    previousHandPosition[i] = currentHandPosition;
+                    // デバッグ: Progress計算の詳細ログ
+                    if (enableDebugLogs)
+                    {
+                        Debug.Log($"=== Absolute Position Progress Calculation Debug for Cube[{i}] ===");
+                        Debug.Log($"Progress Rate: {pRate:F3}, Adjusted Displacement: {adjustedDisplacement:F6}");
+                        Debug.Log($"Progress Formula: 1.0 - ({adjustedDisplacement:F6} * {pRate:F3}) = {(1.0f - (adjustedDisplacement * pRate)):F6}");
+                        Debug.Log($"Old Progress: {oldProgress:F6}");
+                        Debug.Log($"New Progress (after clamp): {currentProgress[i]:F6}");
+                        Debug.Log($"Progress Change: {oldProgress:F6} -> {currentProgress[i]:F6} (Delta: {(currentProgress[i] - oldProgress):F6})");
+                    }
                     
                     // デバッグ：変化量を確認
-                    if (enableDebugLogs && Mathf.Abs(oldProgress - currentProgress[i]) > 0.0001f && allowProgressChange)
+                    if (enableDebugLogs)
                     {
-                        Debug.Log($"Progress changed for cube[{i}]: {oldProgress:F6} -> {currentProgress[i]:F6}, Frame {useAxis} change: {frameAxisChange:F6}, Adjusted change: {adjustedFrameChange:F6}");
+                        if (Mathf.Abs(oldProgress - currentProgress[i]) > 0.0001f)
+                        {
+                            Debug.Log($"*** PROGRESS CHANGED *** for cube[{i}]: {oldProgress:F6} -> {currentProgress[i]:F6}, Absolute {useAxis} displacement: {absoluteDisplacement:F6}, Adjusted displacement: {adjustedDisplacement:F6}");
+                        }
+                        else
+                        {
+                            Debug.Log($"*** NO PROGRESS CHANGE *** for cube[{i}]: Progress remains {currentProgress[i]:F6}, Absolute {useAxis} displacement: {absoluteDisplacement:F6} (too small or zero)");
+                        }
                     }
 
                     if (enableDebugLogs)
                     {
                         string statusInfo = GetActivationStatus();
-                        Debug.Log($"ContactProgressController: cube[{i}] touching, pRate={pRate:F3}, currentProgress={currentProgress[i]:F4}, Frame {useAxis} change={frameAxisChange:F6}, displacementMultiplier={displacementMultiplier:F2}");
+                        Debug.Log($"ContactProgressController: cube[{i}] touching, pRate={pRate:F3}, currentProgress={currentProgress[i]:F4}, Absolute {useAxis} displacement={absoluteDisplacement:F6}, displacementMultiplier={displacementMultiplier:F2}");
                         Debug.Log($"Activation Status: {statusInfo}");
                     }
                 }
@@ -421,14 +430,23 @@ public class ContactProgressController : MonoBehaviour
                     if (enableDebugLogs)
                     {
                         float progress = handTransitionMaterial.GetFloat("_Progress");
+                        Debug.Log($"=== Shader Update Debug for Cube[{i}] ===");
+                        Debug.Log($"Shader _Progress set to: {progress:F6}, Current Progress: {currentProgress[i]:F6}");
                         if (progressIncreaseRate != null && i < progressIncreaseRate.Length)
                         {
-                            Debug.Log($"Cube {i}: Shader _Progress = {progress:F6}, Current Progress = {currentProgress[i]:F6}, pRate={progressIncreaseRate[i]:F6}");
+                            Debug.Log($"Progress Rate: {progressIncreaseRate[i]:F6}");
                         }
                         else
                         {
-                            Debug.Log($"Cube {i}: Shader _Progress = {progress:F6}, Current Progress = {currentProgress[i]:F6}, pRate=default(0.5)");
+                            Debug.Log($"Progress Rate: default(0.5)");
                         }
+                    }
+                }
+                else
+                {
+                    if (enableDebugLogs)
+                    {
+                        Debug.LogWarning($"handTransitionMaterial is null! Cannot update shader for cube[{i}]");
                     }
                 }
             }

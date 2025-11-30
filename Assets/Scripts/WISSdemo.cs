@@ -22,13 +22,10 @@ public class WISSdemo : MonoBehaviour
 
     [Header("Progress Rate Settings")]
     // 各Cubeの個別progressrate設定（インスペクターで調整可能）
-    [Range(0.1f, 5.0f)]
     public float cube1ProgressRate = 0.5f;
     
-    [Range(0.1f, 5.0f)]
     public float cube2ProgressRate = 1.0f;
     
-    [Range(0.1f, 5.0f)]
     public float cube3ProgressRate = 1.5f;
 
     [Header("Auto Assignment")]

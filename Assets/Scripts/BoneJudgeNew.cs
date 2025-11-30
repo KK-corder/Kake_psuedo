@@ -21,10 +21,10 @@ public class BoneJudgeNew : MonoBehaviour
     // 各形状用の接触判定距離設定
     public float sphereContactThreshold = 0.02f; // Sphere表面からの接触判定距離（拡大）
     
-    [Header("Capsule Contact Settings")]
+
     // Capsule（円柱）専用設定 - 体積内接触判定
-    public bool useVolumeBasedDetection = true; // 円柱体積内での接触判定を使用
-    public bool showDebugInfo = true; // デバッグ情報を表示
+    [HideInInspector] public bool useVolumeBasedDetection = true; // 円柱体積内での接触判定を使用
+    [HideInInspector]public bool showDebugInfo = true; // デバッグ情報を表示
     
     [Header("Contact Sensitivity Settings")]
     // 接触判定の甘さ調整
@@ -336,6 +336,23 @@ public class BoneJudgeNew : MonoBehaviour
         }
         
         return Vector3.zero;
+    }
+    
+    /// 指定されたインデックスの接触しているボーンの回転を取得
+    public Quaternion GetContactingBoneRotation(int cubeIndex)
+    {
+        if (cubeIndex < 0 || cubeIndex >= fixedClosestBones.Length)
+            return Quaternion.identity;
+            
+        if (isTouching != null && cubeIndex < isTouching.Length && isTouching[cubeIndex])
+        {
+            if (fixedClosestBones[cubeIndex] != null)
+            {
+                return fixedClosestBones[cubeIndex].rotation;
+            }
+        }
+        
+        return Quaternion.identity;
     }
     
     /// <summary>

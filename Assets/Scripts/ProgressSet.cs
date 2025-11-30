@@ -16,11 +16,17 @@ public class ProgressSet : MonoBehaviour
     
     [Header("Debug")]
     public bool logProgressEvents = true;
+    
+    [Header("Point Visualization")]
+    public GameObject startPointSphere; // StartPointを表示するSphere
+    public GameObject endPointSphere;   // EndPointを表示するSphere
+    public bool enableVisualization = true; // 可視化を有効にするか
 
     // 内部変数
     private float[] fixedZs; // 各オブジェクトに対応する固定z座標
     private float fixedForearmX; // 始点用のHand_ForearmStubの x 座標を固定するための変数（Y軸のみ変化用）
     private float fixedForearmZ; // 始点用のHand_ForearmStubの z 座標を固定するための変数（Y軸のみ変化用）
+    private Vector3 fixedStartPoint; // 固定されたスタートポイント
     private bool forearmZFrozen = false;
 
     void Start()
@@ -75,7 +81,7 @@ public class ProgressSet : MonoBehaviour
         
         if (useCustomStartPoint && startPointObject != null)
         {
-            // カスタムオブジェクトの座標を使用
+            // カスタムオブジェクトの座標を使用（固定）
             baseStartPos = startPointObject.position;
         }
         else
@@ -90,40 +96,27 @@ public class ProgressSet : MonoBehaviour
             }
         }
         
+        // StartPointは常に動的に更新（固定しない）
+        progressStart = baseStartPos;
+        
         if (anyContact)
         {
-            // 接触中なら、初回の接触時に固定した x, z 座標を使う（Y軸のみ変化）
             if (!forearmZFrozen)
             {
-                fixedForearmX = baseStartPos.x; // X軸を固定
-                fixedForearmZ = baseStartPos.z; // Z軸を固定
                 forearmZFrozen = true;
-                
-                // 接触開始時に各オブジェクトのZ座標も固定
-                for (int i = 0; i < bonejudgeNew.fixedClosestBones.Length; i++)
-                {
-                    if (bonejudgeNew.isTouching[i] && bonejudgeNew.fixedClosestBones[i] != null)
-                    {
-                        fixedZs[i] = bonejudgeNew.fixedClosestBones[i].position.z;
-                    }
-                }
-                
                 if (logProgressEvents)
                 {
-                    Debug.Log($"ProgressSet: Contact started. Fixed forearm X at {fixedForearmX:F4}, Z at {fixedForearmZ:F4}");
+                    Debug.Log($"ProgressSet: Contact started. StartPoint following hand movement dynamically.");
                 }
             }
-            // Y軸のみ動的に更新、X軸とZ軸は固定
-            progressStart = new Vector3(fixedForearmX, baseStartPos.y, fixedForearmZ);
         }
         else
         {
             forearmZFrozen = false; // 接触がなくなったら解除
-            progressStart = baseStartPos;
             
             if (logProgressEvents && anyContact != bonejudgeNew.IsAnyContact())
             {
-                Debug.Log("ProgressSet: Contact ended. Z position unfrozen.");
+                Debug.Log("ProgressSet: Contact ended. StartPoint remains dynamic.");
             }
         }
 
@@ -159,6 +152,38 @@ public class ProgressSet : MonoBehaviour
         if (logProgressEvents && anyContact)
         {
             Debug.Log($"ProgressSet: Start={progressStart}, End={progressEnd}");
+        }
+        
+        // Pointの可視化更新
+        UpdatePointVisualization();
+    }
+    
+    /// <summary>
+    /// StartPointとEndPointのSphereの位置を更新
+    /// </summary>
+    private void UpdatePointVisualization()
+    {
+        if (!enableVisualization)
+            return;
+            
+        // StartPoint Sphereの位置更新
+        if (startPointSphere != null)
+        {
+            startPointSphere.transform.position = progressStart;
+            
+            // 接触中は表示、非接触時は非表示
+            bool anyContact = bonejudgeNew.IsAnyContact();
+            startPointSphere.SetActive(anyContact);
+        }
+        
+        // EndPoint Sphereの位置更新
+        if (endPointSphere != null)
+        {
+            endPointSphere.transform.position = progressEnd;
+            
+            // 接触中は表示、非接触時は非表示
+            bool anyContact = bonejudgeNew.IsAnyContact();
+            endPointSphere.SetActive(anyContact);
         }
     }
     
@@ -210,6 +235,43 @@ public class ProgressSet : MonoBehaviour
     public float GetProgressDistance()
     {
         return Vector3.Distance(progressStart, progressEnd);
+    }
+    
+    /// <summary>
+    /// 可視化用Sphereを設定
+    /// </summary>
+    /// <param name="startSphere">StartPoint用のSphere</param>
+    /// <param name="endSphere">EndPoint用のSphere</param>
+    public void SetVisualizationSpheres(GameObject startSphere, GameObject endSphere)
+    {
+        startPointSphere = startSphere;
+        endPointSphere = endSphere;
+        
+        if (logProgressEvents)
+        {
+            Debug.Log($"ProgressSet: Visualization spheres set. Start: {(startSphere != null ? startSphere.name : "null")}, End: {(endSphere != null ? endSphere.name : "null")}");
+        }
+    }
+    
+    /// <summary>
+    /// 可視化の有効/無効を切り替え
+    /// </summary>
+    /// <param name="enabled">有効にするか</param>
+    public void SetVisualizationEnabled(bool enabled)
+    {
+        enableVisualization = enabled;
+        
+        // 無効にした場合はSphereを非表示
+        if (!enabled)
+        {
+            if (startPointSphere != null) startPointSphere.SetActive(false);
+            if (endPointSphere != null) endPointSphere.SetActive(false);
+        }
+        
+        if (logProgressEvents)
+        {
+            Debug.Log($"ProgressSet: Visualization {(enabled ? "enabled" : "disabled")}");
+        }
     }
     
     /// <summary>
