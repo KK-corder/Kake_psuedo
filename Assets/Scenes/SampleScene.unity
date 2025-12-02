@@ -178,8 +178,8 @@ MonoBehaviour:
   progressStart: {x: 0, y: 0, z: 0}
   progressEnd: {x: 0, y: 0, z: 0}
   logProgressEvents: 0
-  startPointSphere: {fileID: 1643945081}
-  endPointSphere: {fileID: 734337644}
+  startPointSphere: {fileID: 0}
+  endPointSphere: {fileID: 0}
   enableVisualization: 1
 --- !u!4 &207986282 stripped
 Transform:
@@ -1530,7 +1530,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &734337645
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -4333,7 +4333,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!135 &1643945082
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -6654,7 +6654,7 @@ MonoBehaviour:
   isTouching: 00
   fixedClosestBones: []
   touchPoints: []
-  contactMaterial: {fileID: 2100000, guid: 53e53ef10d944994386865dff459d282, type: 2}
+  contactMaterial: {fileID: 0}
   logContactEvents: 0
 --- !u!1 &2113951837
 GameObject:

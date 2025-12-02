@@ -84,5 +84,5 @@ Material:
     - _Color2: {r: 1, g: 0.4009434, b: 0.4009434, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _EndPoint: {r: 0, g: 0, b: 0, a: 0}
-    - _StartPoint: {r: 0.061626613, g: 1.9572483, b: -0.031530634, a: 0}
+    - _StartPoint: {r: 0.06524441, g: 1.94222, b: -0.06082228, a: 0}
   m_BuildTextureStacks: []
