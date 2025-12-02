@@ -6,8 +6,12 @@ public class ProgressSet : MonoBehaviour
     public BoneJudgeNew bonejudgeNew; // 接触判定の参照
     
     [Header("Start Point Settings")]
-    public Transform startPointObject; // 始点として使用するオブジェクト
+    public Transform leftHandStartPointObject;  // 左手用の始点オブジェクト
+    public Transform rightHandStartPointObject; // 右手用の始点オブジェクト
     public bool useCustomStartPoint = false; // カスタムstart pointを使用するかどうか
+    
+    [Header("Hand Detection")]
+    public GrabJudge grabJudge; // 掴み判定の参照
     
     [Header("Progress Points")]
     // プログレスの始点と終点の座標
@@ -49,15 +53,37 @@ public class ProgressSet : MonoBehaviour
         fixedZs = new float[count];
         
         // カスタムstart pointの検証
-        if (useCustomStartPoint && startPointObject == null)
+        if (useCustomStartPoint)
         {
-            Debug.LogWarning("ProgressSet: useCustomStartPoint is enabled but startPointObject is not assigned. Falling back to Hand_ForearmStub.");
-            useCustomStartPoint = false;
+            bool leftValid = leftHandStartPointObject != null;
+            bool rightValid = rightHandStartPointObject != null;
+            
+            if (!leftValid && !rightValid)
+            {
+                Debug.LogWarning("ProgressSet: useCustomStartPoint is enabled but no start point objects are assigned. Falling back to Hand_ForearmStub.");
+                useCustomStartPoint = false;
+            }
+            else
+            {
+                if (leftValid && rightValid)
+                {
+                    Debug.Log($"ProgressSet: Using custom start point objects - Left: {leftHandStartPointObject.name}, Right: {rightHandStartPointObject.name}");
+                }
+                else if (leftValid)
+                {
+                    Debug.Log($"ProgressSet: Using left hand start point object: {leftHandStartPointObject.name}");
+                }
+                else if (rightValid)
+                {
+                    Debug.Log($"ProgressSet: Using right hand start point object: {rightHandStartPointObject.name}");
+                }
+            }
         }
         
-        if (useCustomStartPoint && startPointObject != null)
+        // GrabJudgeの検証
+        if (grabJudge == null)
         {
-            Debug.Log($"ProgressSet: Using custom start point object: {startPointObject.name}");
+            Debug.LogWarning("ProgressSet: grabJudge reference is not assigned. Hand-specific start point selection may not work properly.");
         }
     }
 
@@ -79,10 +105,48 @@ public class ProgressSet : MonoBehaviour
         // 通常のハントラ時は手首の座標
         Vector3 baseStartPos = Vector3.zero;
         
-        if (useCustomStartPoint && startPointObject != null)
+        if (useCustomStartPoint && (leftHandStartPointObject != null || rightHandStartPointObject != null))
         {
-            // カスタムオブジェクトの座標を使用（固定）
-            baseStartPos = startPointObject.position;
+            // 接触かつ掴み状態に基づいて手種別を判定
+            HandType activeHand = DetermineActiveHand();
+            
+            if (activeHand == HandType.LeftHand && leftHandStartPointObject != null)
+            {
+                baseStartPos = leftHandStartPointObject.position;
+                if (logProgressEvents && anyContact)
+                {
+                    Debug.Log($"ProgressSet: Using left hand start point object: {leftHandStartPointObject.name}");
+                }
+            }
+            else if (activeHand == HandType.RightHand && rightHandStartPointObject != null)
+            {
+                baseStartPos = rightHandStartPointObject.position;
+                if (logProgressEvents && anyContact)
+                {
+                    Debug.Log($"ProgressSet: Using right hand start point object: {rightHandStartPointObject.name}");
+                }
+            }
+            else
+            {
+                // フォールバック: 利用可能なオブジェクトを使用
+                if (leftHandStartPointObject != null)
+                {
+                    baseStartPos = leftHandStartPointObject.position;
+                }
+                else if (rightHandStartPointObject != null)
+                {
+                    baseStartPos = rightHandStartPointObject.position;
+                }
+                else
+                {
+                    baseStartPos = GetContactingHandForearmPosition();
+                }
+                
+                if (logProgressEvents && anyContact)
+                {
+                    Debug.Log($"ProgressSet: Using fallback start point, active hand: {activeHand}");
+                }
+            }
         }
         else
         {
@@ -214,17 +278,49 @@ public class ProgressSet : MonoBehaviour
     }
     
     /// <summary>
-    /// カスタムstart pointオブジェクトを設定
+    /// 左手用カスタムstart pointオブジェクトを設定
     /// </summary>
     /// <param name="customObject">使用するTransform</param>
-    public void SetCustomStartPointObject(Transform customObject)
+    public void SetLeftHandStartPointObject(Transform customObject)
     {
-        startPointObject = customObject;
-        useCustomStartPoint = (customObject != null);
+        leftHandStartPointObject = customObject;
+        useCustomStartPoint = (leftHandStartPointObject != null || rightHandStartPointObject != null);
         
         if (logProgressEvents)
         {
-            Debug.Log($"ProgressSet: Custom start point object set to {(customObject != null ? customObject.name : "null")}");
+            Debug.Log($"ProgressSet: Left hand start point object set to {(customObject != null ? customObject.name : "null")}");
+        }
+    }
+    
+    /// <summary>
+    /// 右手用カスタムstart pointオブジェクトを設定
+    /// </summary>
+    /// <param name="customObject">使用するTransform</param>
+    public void SetRightHandStartPointObject(Transform customObject)
+    {
+        rightHandStartPointObject = customObject;
+        useCustomStartPoint = (leftHandStartPointObject != null || rightHandStartPointObject != null);
+        
+        if (logProgressEvents)
+        {
+            Debug.Log($"ProgressSet: Right hand start point object set to {(customObject != null ? customObject.name : "null")}");
+        }
+    }
+    
+    /// <summary>
+    /// 両手のカスタムstart pointオブジェクトを設定
+    /// </summary>
+    /// <param name="leftHandObject">左手用Transform</param>
+    /// <param name="rightHandObject">右手用Transform</param>
+    public void SetBothHandStartPointObjects(Transform leftHandObject, Transform rightHandObject)
+    {
+        leftHandStartPointObject = leftHandObject;
+        rightHandStartPointObject = rightHandObject;
+        useCustomStartPoint = (leftHandObject != null || rightHandObject != null);
+        
+        if (logProgressEvents)
+        {
+            Debug.Log($"ProgressSet: Start point objects set - Left: {(leftHandObject != null ? leftHandObject.name : "null")}, Right: {(rightHandObject != null ? rightHandObject.name : "null")}");
         }
     }
     
@@ -378,4 +474,152 @@ public class ProgressSet : MonoBehaviour
         }
         return Vector3.zero;
     }
+
+    #region Hand Detection Methods
+
+    /// <summary>
+    /// 手の種別を表す列挙型
+    /// </summary>
+    public enum HandType
+    {
+        None,
+        LeftHand,
+        RightHand,
+        BothHands
+    }
+
+    /// <summary>
+    /// 接触かつ掴み状態の手を判定する
+    /// </summary>
+    /// <returns>アクティブな手の種別</returns>
+    private HandType DetermineActiveHand()
+    {
+        if (bonejudgeNew == null)
+            return HandType.None;
+
+        bool anyContact = bonejudgeNew.IsAnyContact();
+        if (!anyContact)
+            return HandType.None;
+
+        // 接触している手を確認
+        bool isRightHandTouching = false;
+        bool isLeftHandTouching = false;
+
+        // 各Cubeについて接触している手をチェック
+        for (int i = 0; i < bonejudgeNew.cubes.Length; i++)
+        {
+            if (bonejudgeNew.isTouching[i])
+            {
+                if (bonejudgeNew.IsRightHandTouching(i))
+                {
+                    isRightHandTouching = true;
+                }
+                if (bonejudgeNew.IsLeftHandTouching(i))
+                {
+                    isLeftHandTouching = true;
+                }
+            }
+        }
+
+        // 握り状態を確認
+        bool isRightHandGrabbing = false;
+        bool isLeftHandGrabbing = false;
+
+        if (grabJudge != null)
+        {
+            isRightHandGrabbing = grabJudge.IsRightHandGrabbing();
+            isLeftHandGrabbing = grabJudge.IsLeftHandGrabbing();
+        }
+
+        // 接触かつ掴みの条件をチェック
+        bool rightHandActive = isRightHandTouching && isRightHandGrabbing;
+        bool leftHandActive = isLeftHandTouching && isLeftHandGrabbing;
+
+        if (logProgressEvents && (rightHandActive || leftHandActive))
+        {
+            Debug.Log($"ProgressSet: Hand Activity - Right: Touch={isRightHandTouching}, Grab={isRightHandGrabbing}, Active={rightHandActive} | Left: Touch={isLeftHandTouching}, Grab={isLeftHandGrabbing}, Active={leftHandActive}");
+        }
+
+        // アクティブな手を判定
+        if (rightHandActive && leftHandActive)
+        {
+            return HandType.BothHands;
+        }
+        else if (rightHandActive)
+        {
+            return HandType.RightHand;
+        }
+        else if (leftHandActive)
+        {
+            return HandType.LeftHand;
+        }
+        else
+        {
+            // 接触はしているが掴んでいない場合は、接触している手を返す
+            if (isRightHandTouching && isLeftHandTouching)
+            {
+                return HandType.BothHands;
+            }
+            else if (isRightHandTouching)
+            {
+                return HandType.RightHand;
+            }
+            else if (isLeftHandTouching)
+            {
+                return HandType.LeftHand;
+            }
+        }
+
+        return HandType.None;
+    }
+
+    /// <summary>
+    /// 現在アクティブな手の情報を取得（デバッグ用）
+    /// </summary>
+    /// <returns>アクティブな手の情報文字列</returns>
+    public string GetActiveHandInfo()
+    {
+        HandType activeHand = DetermineActiveHand();
+        string startPointUsed = "None";
+
+        if (useCustomStartPoint)
+        {
+            switch (activeHand)
+            {
+                case HandType.LeftHand:
+                    startPointUsed = leftHandStartPointObject != null ? leftHandStartPointObject.name : "Missing";
+                    break;
+                case HandType.RightHand:
+                    startPointUsed = rightHandStartPointObject != null ? rightHandStartPointObject.name : "Missing";
+                    break;
+                case HandType.BothHands:
+                    startPointUsed = "Both hands active";
+                    break;
+            }
+        }
+        else
+        {
+            startPointUsed = "Hand_ForearmStub";
+        }
+
+        return $"Active Hand: {activeHand}, Start Point Used: {startPointUsed}";
+    }
+
+    /// <summary>
+    /// StartPoint設定の状態をデバッグ出力
+    /// </summary>
+    [ContextMenu("Debug Start Point Settings")]
+    public void DebugStartPointSettings()
+    {
+        Debug.Log("=== ProgressSet Start Point Debug ===");
+        Debug.Log($"Use Custom Start Point: {useCustomStartPoint}");
+        Debug.Log($"Left Hand Start Point: {(leftHandStartPointObject != null ? leftHandStartPointObject.name : "Not Assigned")}");
+        Debug.Log($"Right Hand Start Point: {(rightHandStartPointObject != null ? rightHandStartPointObject.name : "Not Assigned")}");
+        Debug.Log($"GrabJudge: {(grabJudge != null ? "Assigned" : "Not Assigned")}");
+        Debug.Log($"{GetActiveHandInfo()}");
+        Debug.Log($"Current Progress Start: {progressStart}");
+        Debug.Log($"Current Progress End: {progressEnd}");
+    }
+
+    #endregion
 }

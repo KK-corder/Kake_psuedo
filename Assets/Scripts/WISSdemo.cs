@@ -58,6 +58,17 @@ public class WISSdemo : MonoBehaviour
         if (!isInitialized)
             return;
 
+        // システムの整合性チェック
+        if (!ValidateSystemIntegrity())
+        {
+            if (showDebugInfo)
+            {
+                Debug.LogWarning("WISSdemo: System integrity check failed, attempting recovery");
+            }
+            AttemptSystemRecovery();
+            return;
+        }
+
         // progressrateの変更を監視して同期
         if (enableProgressRateSync)
         {
@@ -388,4 +399,154 @@ public class WISSdemo : MonoBehaviour
     {
         Debug.Log(GetSystemStatus());
     }
+
+    #region Stability and Recovery Methods
+
+    /// <summary>
+    /// システムの整合性を検証
+    /// </summary>
+    private bool ValidateSystemIntegrity()
+    {
+        // 基本的なコンポーネントチェック
+        if (boneJudgeNew == null)
+        {
+            Debug.LogError("WISSdemo: BoneJudgeNew reference is null");
+            return false;
+        }
+
+        if (contactProgressController == null)
+        {
+            Debug.LogError("WISSdemo: ContactProgressController reference is null");
+            return false;
+        }
+
+        // Cubeの整合性チェック
+        bool cubesValid = true;
+        for (int i = 0; i < managedCubes.Length; i++)
+        {
+            if (managedCubes[i] == null)
+            {
+                Debug.LogWarning($"WISSdemo: Managed cube[{i}] is null");
+                cubesValid = false;
+            }
+        }
+
+        // Progress Rateの有効性チェック
+        float[] rates = { cube1ProgressRate, cube2ProgressRate, cube3ProgressRate };
+        for (int i = 0; i < rates.Length; i++)
+        {
+            if (float.IsNaN(rates[i]) || float.IsInfinity(rates[i]) || rates[i] < 0f)
+            {
+                Debug.LogWarning($"WISSdemo: Invalid progress rate for cube{i + 1}: {rates[i]}");
+                // 自動修正
+                switch (i)
+                {
+                    case 0: cube1ProgressRate = 0.5f; break;
+                    case 1: cube2ProgressRate = 1.0f; break;
+                    case 2: cube3ProgressRate = 1.5f; break;
+                }
+            }
+        }
+
+        return cubesValid;
+    }
+
+    /// <summary>
+    /// システム回復処理
+    /// </summary>
+    private void AttemptSystemRecovery()
+    {
+        Debug.Log("WISSdemo: Attempting system recovery");
+
+        // BoneJudgeNewの再検索
+        if (boneJudgeNew == null)
+        {
+            boneJudgeNew = FindObjectOfType<BoneJudgeNew>();
+            if (boneJudgeNew != null)
+            {
+                Debug.Log("WISSdemo: BoneJudgeNew reference recovered");
+            }
+        }
+
+        // ContactProgressControllerの再検索
+        if (contactProgressController == null)
+        {
+            contactProgressController = FindObjectOfType<ContactProgressController>();
+            if (contactProgressController != null)
+            {
+                Debug.Log("WISSdemo: ContactProgressController reference recovered");
+            }
+        }
+
+        // Cubeの再割り当て
+        if (autoAssignFromBoneJudge && boneJudgeNew != null)
+        {
+            AssignCubesFromBoneJudge();
+        }
+
+        // Progress Rateの再同期
+        if (enableProgressRateSync)
+        {
+            ApplyProgressRatesToController();
+        }
+    }
+
+    /// <summary>
+    /// 全システムの強制リセット
+    /// </summary>
+    [ContextMenu("Force System Reset")]
+    public void ForceSystemReset()
+    {
+        Debug.Log("WISSdemo: Force system reset initiated");
+
+        // Progress値のリセット
+        if (contactProgressController != null)
+        {
+            contactProgressController.ResetCumulativeDisplacement();
+        }
+
+        // Progress Rateのリセット
+        cube1ProgressRate = 0.5f;
+        cube2ProgressRate = 1.0f;
+        cube3ProgressRate = 1.5f;
+
+        // システムの再初期化
+        isInitialized = false;
+        InitializeCubeManagement();
+
+        Debug.Log("WISSdemo: System reset completed");
+    }
+
+    /// <summary>
+    /// システムヘルスチェックの実行
+    /// </summary>
+    [ContextMenu("Run System Health Check")]
+    public void RunSystemHealthCheck()
+    {
+        Debug.Log("=== WISSdemo System Health Check ===");
+        
+        Debug.Log($"Initialization Status: {isInitialized}");
+        Debug.Log($"BoneJudgeNew: {(boneJudgeNew != null ? "OK" : "MISSING")}");
+        Debug.Log($"ContactProgressController: {(contactProgressController != null ? "OK" : "MISSING")}");
+        
+        // Cube状態の確認
+        for (int i = 0; i < managedCubes.Length; i++)
+        {
+            string status = managedCubes[i] != null ? "OK" : "MISSING";
+            Debug.Log($"Managed Cube[{i}]: {status}");
+        }
+
+        // Progress Rate状態の確認
+        Debug.Log($"Progress Rates - Cube1: {cube1ProgressRate:F3}, Cube2: {cube2ProgressRate:F3}, Cube3: {cube3ProgressRate:F3}");
+
+        // ContactProgressControllerのデバッグ状態も確認
+        if (contactProgressController != null)
+        {
+            contactProgressController.DebugSystemState();
+        }
+
+        Debug.Log("=== Health Check Completed ===");
+    }
+
+    #endregion
 }

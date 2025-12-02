@@ -54,6 +54,8 @@ public class ContactProgressController : MonoBehaviour
 
     // 接触開始時の手モデルの座標（各キューブごと）
     private Vector3[] contactStartPosition;
+    // 接触開始位置が設定済みかのフラグ（累積変位計算のため）
+    private bool[] contactStartPositionSet;
     // 接触状態の追跡（各キューブごと）
     private bool[] wasContactingLastFrame;
     // 前フレームの手の座標（速度計算用）
@@ -61,6 +63,18 @@ public class ContactProgressController : MonoBehaviour
 
     // 最大配列サイズの制限（StackOverflow防止）
     private const int MAX_ARRAY_SIZE = 10;
+    
+    [Header("Stability Control")]
+    [SerializeField] private bool enableStabilityChecks = true; // 安定性チェックを有効にする
+    [SerializeField] private bool enableErrorRecovery = true; // エラー回復機能を有効にする
+    [SerializeField] private float progressSmoothingFactor = 0.1f; // Progress値のスムージング係数
+    [SerializeField] private int maxProgressUpdatesPerFrame = 3; // フレーム当たりの最大Progress更新数
+    
+    // 安定性管理用の内部変数
+    private bool isInitialized = false;
+    private float[] lastValidProgress; // 最後の有効なProgress値
+    private int[] progressUpdateCount; // フレーム当たりのProgress更新回数
+    private float lastUpdateTime = 0f;
 
 
 
@@ -98,9 +112,14 @@ public class ContactProgressController : MonoBehaviour
             contactTime = new float[cubeCount];
             currentProgress = new float[cubeCount];
             contactStartPosition = new Vector3[cubeCount];
+            contactStartPositionSet = new bool[cubeCount];
             wasContactingLastFrame = new bool[cubeCount];
             contactDuration = new float[cubeCount]; // 接触継続時間の初期化
             previousHandPosition = new Vector3[cubeCount]; // 前フレーム座標の初期化
+            
+            // 安定性管理用配列の初期化
+            lastValidProgress = new float[cubeCount];
+            progressUpdateCount = new int[cubeCount];
 
             // progressIncreaseRateのサイズ調整
             if (progressIncreaseRate == null || progressIncreaseRate.Length != cubeCount)
@@ -118,10 +137,18 @@ public class ContactProgressController : MonoBehaviour
                 contactTime[i] = 0f;
                 currentProgress[i] = 1.0f;
                 contactStartPosition[i] = Vector3.zero;
+                contactStartPositionSet[i] = false;
                 wasContactingLastFrame[i] = false;
                 contactDuration[i] = 0f; // 接触継続時間の初期化
                 previousHandPosition[i] = Vector3.zero; // 前フレーム座標の初期化
+                
+                // 安定性管理用の初期化
+                lastValidProgress[i] = 1.0f;
+                progressUpdateCount[i] = 0;
             }
+            
+            isInitialized = true;
+            lastUpdateTime = Time.time;
 
             if (enableDebugLogs)
             {
@@ -137,12 +164,32 @@ public class ContactProgressController : MonoBehaviour
 
     void Update()
     {
-        // 必要なコンポーネントのnullチェック
-        if (bonejudgeNew == null || bonejudgeNew.isTouching == null || 
-            contactTime == null || currentProgress == null)
+        // 包括的な安定性チェック
+        if (!ValidateSystemState())
+        {
+            if (enableErrorRecovery)
+            {
+                AttemptErrorRecovery();
+            }
+            return;
+        }
+        
+        // フレーム制限チェック
+        if (enableStabilityChecks && Time.time - lastUpdateTime < 0.016f) // ~60FPS制限
         {
             return;
         }
+        
+        // Progress更新カウンターをリセット
+        if (progressUpdateCount != null)
+        {
+            for (int i = 0; i < progressUpdateCount.Length; i++)
+            {
+                progressUpdateCount[i] = 0;
+            }
+        }
+        
+        lastUpdateTime = Time.time;
 
         // 配列サイズの整合性チェック
         if (bonejudgeNew.cubes == null || bonejudgeNew.cubes.Length == 0)
@@ -244,17 +291,27 @@ public class ContactProgressController : MonoBehaviour
                         continue;
                     }
 
-                    // 接触開始時の座標を記録
-                    if (!wasContactingLastFrame[i])
+                    // 接触開始時の座標を記録（累積変位計算のため一度だけ設定）
+                    if (!contactStartPositionSet[i])
                     {
                         Vector3 handPos = GetHandPosition();
                         contactStartPosition[i] = handPos;
+                        contactStartPositionSet[i] = true;
                         previousHandPosition[i] = handPos; // 前フレーム座標も初期化
+                        
+                        if (enableDebugLogs)
+                        {
+                            Debug.Log($"Initial contact start position set for cube[{i}] at position: {contactStartPosition[i]} (cumulative displacement base)");
+                        }
+                    }
+                    
+                    if (!wasContactingLastFrame[i])
+                    {
                         wasContactingLastFrame[i] = true;
                         
                         if (enableDebugLogs)
                         {
-                            Debug.Log($"Stable contact started for cube[{i}] at position: {contactStartPosition[i]} after {contactDuration[i]:F3}s");
+                            Debug.Log($"Stable contact resumed for cube[{i}] after {contactDuration[i]:F3}s (using existing start position: {contactStartPosition[i]})");
                         }
                     }
 
@@ -320,10 +377,23 @@ public class ContactProgressController : MonoBehaviour
                     
                     // 絶対変位に基づいてProgress値を直接設定
                     // Y座標増加（正の変位） → progress減少、Y座標減少（負の変位） → progress増加
-                    currentProgress[i] = 1.0f - (adjustedDisplacement * pRate);
+                    float newProgress = 1.0f - (adjustedDisplacement * pRate);
                     
-                    // currentProgressを0.0-1.0の範囲にクランプ
-                    currentProgress[i] = Mathf.Clamp01(currentProgress[i]);
+                    // Progress値の安定化処理
+                    newProgress = ValidateAndStabilizeProgress(i, newProgress, oldProgress);
+                    
+                    // 更新制限チェック
+                    if (enableStabilityChecks && progressUpdateCount[i] >= maxProgressUpdatesPerFrame)
+                    {
+                        if (enableDebugLogs)
+                        {
+                            Debug.Log($"Progress update limit reached for cube[{i}] this frame");
+                        }
+                        continue;
+                    }
+                    
+                    currentProgress[i] = newProgress;
+                    progressUpdateCount[i]++;
                     
                     // デバッグ: Progress計算の詳細ログ
                     if (enableDebugLogs)
@@ -391,6 +461,16 @@ public class ContactProgressController : MonoBehaviour
                 contactDuration[i] = 0f; // 接触継続時間もリセット
                 if (i < previousHandPosition.Length)
                     previousHandPosition[i] = Vector3.zero; // 前フレーム座標もリセット
+                
+                // 累積変位計算のベース位置もリセット（重要！）
+                if (i < contactStartPositionSet.Length)
+                {
+                    contactStartPositionSet[i] = false;
+                    if (enableDebugLogs)
+                    {
+                        Debug.Log($"Cube {i}: Reset contact start position flag for fresh cumulative displacement calculation");
+                    }
+                }
 
                 // デバッグログでリセットを確認
                 if (enableDebugLogs)
@@ -421,33 +501,19 @@ public class ContactProgressController : MonoBehaviour
 
             if (bonejudgeNew.isTouching[i])
             {
-                // シェーダーの _Progress プロパティを更新
-                if (handTransitionMaterial != null)
+                // シェーダーの _Progress プロパティを安全に更新
+                bool shaderUpdateSuccess = SafeUpdateShader(i, currentProgress[i]);
+                
+                if (!shaderUpdateSuccess && enableErrorRecovery)
                 {
-                    handTransitionMaterial.SetFloat("_Progress", currentProgress[i]);
-
-                    // デバッグログで _Progress の値を確認
+                    // シェーダー更新失敗時の回復処理
                     if (enableDebugLogs)
                     {
-                        float progress = handTransitionMaterial.GetFloat("_Progress");
-                        Debug.Log($"=== Shader Update Debug for Cube[{i}] ===");
-                        Debug.Log($"Shader _Progress set to: {progress:F6}, Current Progress: {currentProgress[i]:F6}");
-                        if (progressIncreaseRate != null && i < progressIncreaseRate.Length)
-                        {
-                            Debug.Log($"Progress Rate: {progressIncreaseRate[i]:F6}");
-                        }
-                        else
-                        {
-                            Debug.Log($"Progress Rate: default(0.5)");
-                        }
+                        Debug.LogWarning($"Shader update failed for cube[{i}], attempting recovery");
                     }
-                }
-                else
-                {
-                    if (enableDebugLogs)
-                    {
-                        Debug.LogWarning($"handTransitionMaterial is null! Cannot update shader for cube[{i}]");
-                    }
+                    
+                    // 最後の有効値で再試行
+                    SafeUpdateShader(i, lastValidProgress[i]);
                 }
             }
         }
@@ -661,4 +727,265 @@ public class ContactProgressController : MonoBehaviour
         
         return $"Mode: {mode}, Contact: {contactActive}, Grab: {grabActive}, Progress Active: {shouldActivate}";
     }
+
+    /// <summary>
+    /// 累積変位計算をリセット（新しいセッション開始時に呼び出し）
+    /// </summary>
+    public void ResetCumulativeDisplacement()
+    {
+        if (contactStartPositionSet != null)
+        {
+            for (int i = 0; i < contactStartPositionSet.Length; i++)
+            {
+                contactStartPositionSet[i] = false;
+                contactStartPosition[i] = Vector3.zero;
+                currentProgress[i] = 1.0f;
+            }
+        }
+
+        if (enableDebugLogs)
+        {
+            Debug.Log("ContactProgressController: Cumulative displacement calculation reset - fresh start positions will be recorded");
+        }
+    }
+
+    /// <summary>
+    /// 特定のCubeの累積変位計算をリセット
+    /// </summary>
+    public void ResetCumulativeDisplacement(int cubeIndex)
+    {
+        if (contactStartPositionSet != null && cubeIndex >= 0 && cubeIndex < contactStartPositionSet.Length)
+        {
+            contactStartPositionSet[cubeIndex] = false;
+            contactStartPosition[cubeIndex] = Vector3.zero;
+            currentProgress[cubeIndex] = 1.0f;
+
+            if (enableDebugLogs)
+            {
+                Debug.Log($"ContactProgressController: Cumulative displacement reset for cube[{cubeIndex}]");
+            }
+        }
+    }
+
+    #region Stability and Validation Methods
+
+    /// <summary>
+    /// システム状態の包括的な検証
+    /// </summary>
+    private bool ValidateSystemState()
+    {
+        // 基本的なnullチェック
+        if (bonejudgeNew == null || bonejudgeNew.isTouching == null || 
+            contactTime == null || currentProgress == null || !isInitialized)
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning("ContactProgressController: Critical system state validation failed");
+            }
+            return false;
+        }
+
+        // 配列サイズの一貫性チェック
+        int expectedSize = bonejudgeNew.cubes != null ? 
+            Mathf.Min(bonejudgeNew.cubes.Length, MAX_ARRAY_SIZE) : 3;
+
+        if (currentProgress.Length != expectedSize || 
+            contactTime.Length != expectedSize ||
+            (contactStartPosition != null && contactStartPosition.Length != expectedSize))
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning("ContactProgressController: Array size inconsistency detected");
+            }
+            return false;
+        }
+
+        // 握り判定の必要性チェック
+        if (requireGrabAndContact && grabJudge == null)
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning("ContactProgressController: GrabJudge required but not assigned");
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Progress値の検証と安定化
+    /// </summary>
+    private float ValidateAndStabilizeProgress(int cubeIndex, float newProgress, float oldProgress)
+    {
+        if (cubeIndex < 0 || cubeIndex >= currentProgress.Length)
+        {
+            return 1.0f; // デフォルト値
+        }
+
+        // NaN や無限大の値をチェック
+        if (float.IsNaN(newProgress) || float.IsInfinity(newProgress))
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning($"Invalid progress value detected for cube[{cubeIndex}]: {newProgress}, using last valid value");
+            }
+            return lastValidProgress[cubeIndex];
+        }
+
+        // 値を0-1の範囲にクランプ
+        newProgress = Mathf.Clamp01(newProgress);
+
+        // スムージング処理（急激な変化を抑制）
+        if (enableStabilityChecks && Mathf.Abs(newProgress - oldProgress) > 0.5f)
+        {
+            if (progressSmoothingFactor > 0f)
+            {
+                newProgress = Mathf.Lerp(oldProgress, newProgress, progressSmoothingFactor);
+                if (enableDebugLogs)
+                {
+                    Debug.Log($"Progress smoothing applied for cube[{cubeIndex}]: {oldProgress:F3} -> {newProgress:F3}");
+                }
+            }
+        }
+
+        // 有効値として記録
+        lastValidProgress[cubeIndex] = newProgress;
+        return newProgress;
+    }
+
+    /// <summary>
+    /// 安全なシェーダー更新
+    /// </summary>
+    private bool SafeUpdateShader(int cubeIndex, float progressValue)
+    {
+        if (handTransitionMaterial == null)
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogWarning("handTransitionMaterial is null! Cannot update shader");
+            }
+            return false;
+        }
+
+        try
+        {
+            // 値の最終検証
+            if (float.IsNaN(progressValue) || float.IsInfinity(progressValue))
+            {
+                progressValue = lastValidProgress[cubeIndex];
+            }
+
+            progressValue = Mathf.Clamp01(progressValue);
+            handTransitionMaterial.SetFloat("_Progress", progressValue);
+
+            // 設定値の確認
+            if (enableDebugLogs)
+            {
+                float actualValue = handTransitionMaterial.GetFloat("_Progress");
+                if (Mathf.Abs(actualValue - progressValue) > 0.001f)
+                {
+                    Debug.LogWarning($"Shader value mismatch for cube[{cubeIndex}]: Set {progressValue:F6}, Got {actualValue:F6}");
+                }
+                else
+                {
+                    Debug.Log($"Shader updated successfully for cube[{cubeIndex}]: _Progress = {actualValue:F6}");
+                }
+            }
+
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            if (enableDebugLogs)
+            {
+                Debug.LogError($"Shader update exception for cube[{cubeIndex}]: {e.Message}");
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// エラー回復処理
+    /// </summary>
+    private void AttemptErrorRecovery()
+    {
+        if (enableDebugLogs)
+        {
+            Debug.Log("ContactProgressController: Attempting error recovery");
+        }
+
+        try
+        {
+            // 基本的なnullチェックと再初期化
+            if (bonejudgeNew == null)
+            {
+                bonejudgeNew = FindObjectOfType<BoneJudgeNew>();
+                if (bonejudgeNew == null)
+                {
+                    Debug.LogError("ContactProgressController: Could not find BoneJudgeNew component");
+                    return;
+                }
+            }
+
+            if (requireGrabAndContact && grabJudge == null)
+            {
+                grabJudge = FindObjectOfType<GrabJudge>();
+                if (grabJudge == null)
+                {
+                    Debug.LogError("ContactProgressController: Could not find GrabJudge component");
+                    return;
+                }
+            }
+
+            if (handTransitionMaterial == null)
+            {
+                // マテリアルの再検索を試行
+                Renderer[] renderers = FindObjectsOfType<Renderer>();
+                foreach (var renderer in renderers)
+                {
+                    if (renderer.material != null && renderer.material.HasProperty("_Progress"))
+                    {
+                        handTransitionMaterial = renderer.material;
+                        Debug.Log("ContactProgressController: Found material with _Progress property");
+                        break;
+                    }
+                }
+            }
+
+            // 配列の再初期化
+            if (currentProgress == null || contactTime == null)
+            {
+                Start(); // 再初期化
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"ContactProgressController: Error recovery failed: {e.Message}");
+        }
+    }
+
+    /// <summary>
+    /// システム状態のデバッグ出力
+    /// </summary>
+    public void DebugSystemState()
+    {
+        Debug.Log("=== ContactProgressController System State ===");
+        Debug.Log($"Initialized: {isInitialized}");
+        Debug.Log($"BoneJudgeNew: {(bonejudgeNew != null ? "OK" : "NULL")}");
+        Debug.Log($"GrabJudge: {(grabJudge != null ? "OK" : "NULL")}");
+        Debug.Log($"HandTransitionMaterial: {(handTransitionMaterial != null ? "OK" : "NULL")}");
+        
+        if (currentProgress != null)
+        {
+            Debug.Log($"Current Progress Values: [{string.Join(", ", System.Array.ConvertAll(currentProgress, x => x.ToString("F3")))}]");
+        }
+        
+        if (contactStartPositionSet != null)
+        {
+            Debug.Log($"Contact Start Position Set: [{string.Join(", ", System.Array.ConvertAll(contactStartPositionSet, x => x.ToString()))}]");
+        }
+    }
+
+    #endregion
 }

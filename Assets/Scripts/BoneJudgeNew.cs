@@ -9,6 +9,10 @@ public class BoneJudgeNew : MonoBehaviour
     public OVRSkeleton rightHandSkeleton;
     public OVRSkeleton leftHandSkeleton;
     
+    [Header("Grab Detection")]
+    // 握り判定の参照（bone固定の安定化に使用）
+    public GrabJudge grabJudge;
+    
 
 
     [Header("Target Objects")]
@@ -256,8 +260,23 @@ public class BoneJudgeNew : MonoBehaviour
 
             if (finalTouchingState)
             {
-                // 初回接触時または最も近いボーンが変わった場合
-                if (wasNotTouching || (closestBone != null && fixedClosestBones[cubeIndex] != closestBone))
+                // 握り状態を確認
+                bool isGrabbing = grabJudge != null && grabJudge.IsAnyHandGrabbing();
+                bool shouldUpdateBone = false;
+                
+                if (wasNotTouching)
+                {
+                    // 初回接触時は常にboneを更新
+                    shouldUpdateBone = true;
+                }
+                else if (!isGrabbing && closestBone != null && fixedClosestBones[cubeIndex] != closestBone)
+                {
+                    // 握っていない場合のみ、より近いboneに変更を許可
+                    shouldUpdateBone = true;
+                }
+                // 握り中は既存のboneを維持（bone変更を禁止）
+                
+                if (shouldUpdateBone)
                 {
                     fixedClosestBones[cubeIndex] = closestBone;
                     touchPoints[cubeIndex] = closestTouchPoint;
@@ -266,7 +285,9 @@ public class BoneJudgeNew : MonoBehaviour
                     {
                         string handType = GetHandTypeFromBone(closestBone);
                         string objectType = sphereCollider != null ? "Sphere" : "Object";
-                        Debug.Log($"Contact started with {objectType} {cubeIndex} using {handType} bone: {closestBone.name}");
+                        string updateReason = wasNotTouching ? "Initial contact" : 
+                                            (isGrabbing ? "Grabbing (bone locked)" : "Closer bone found");
+                        Debug.Log($"{updateReason}: {objectType} {cubeIndex} using {handType} bone: {closestBone.name}, Grabbing: {isGrabbing}");
                         
                         if (enableContactStabilization)
                         {
